@@ -1,0 +1,51 @@
+name: Repo Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    name: Build and checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify expected setup files
+        run: |
+          test -f .env.example
+          test -f README.md
+          test -f AGENTS.md
+          test -f docs/SETUP.md
+          test -f docs/ENVIRONMENT.md
+
+      - name: Check that env examples do not contain filled secrets
+        run: |
+          if grep -E '=(sk-|ghp_|gho_|vercel_|eyJ|postgres(ql)?://|https://[^[:space:]]+\\.supabase\\.co)' .env.example; then
+            echo "Potential real secret found in .env.example"
+            exit 1
+          fi
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build

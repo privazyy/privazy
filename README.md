@@ -1,66 +1,68 @@
 # PRIVAZY
 
-Repo przygotowane do pracy zdalnej w modelu:
+Repo prepared for remote development with:
 
 ```txt
-GitHub Codespaces / github.dev → GitHub → Vercel Preview/Production → Supabase
+GitHub Codespaces / github.dev -> GitHub -> Vercel Preview/Production -> Supabase
 ```
 
-## Praca zdalna
+## Remote Development
 
-Do pełnej pracy developerskiej używaj **GitHub Codespaces**:
+Use **GitHub Codespaces** for full development work:
 
-1. Wejdź w repo na GitHubie.
-2. Kliknij **Code → Codespaces → Create codespace on main**.
-3. Po otwarciu środowiska dodaj wymagane sekrety Codespaces.
-4. Jeżeli projekt ma `package.json`, środowisko automatycznie uruchomi `pnpm install`.
-5. Aplikację Next.js uruchamiaj zwykle przez:
+1. Open the repository on GitHub.
+2. Click **Code -> Codespaces -> Create codespace on main**.
+3. Add the required Codespaces secrets after the environment opens.
+4. Copy `.env.example` to `.env.local`.
+5. Fill in the values from Vercel, Supabase, GitHub, and OpenAI/Codex as needed.
+6. Run the app with the package-manager command used by this repo.
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
-Port `3000` jest skonfigurowany do podglądu w Codespaces.
+Port `3000` is configured for preview in Codespaces.
 
-## Szybkie poprawki
+## Quick Edits
 
-Do prostych zmian bez terminala można użyć `github.dev`:
+For simple changes without a terminal, use `github.dev`:
 
 ```txt
-Otwórz repo → naciśnij klawisz .
+Open the repo -> press .
 ```
 
-To nadaje się do literówek, README i prostych zmian w kodzie. Do migracji, terminala, Prisma i testów używaj Codespaces.
+Use Codespaces for migrations, terminal work, Prisma, tests, and application changes.
 
-## Zmienne środowiskowe
+## Environment Variables
 
-W repo trzymaj tylko `.env.example`. Prawdziwe wartości dodawaj osobno w:
+Keep only `.env.example` in git. Store real values separately in:
 
-- **Vercel Environment Variables** — Production / Preview / Development,
-- **GitHub Codespaces Secrets** — praca zdalna,
-- **GitHub Actions Secrets** — automatyzacje CI/CD, jeżeli będą potrzebne.
+- **Vercel Environment Variables** - Production / Preview / Development,
+- **GitHub Codespaces Secrets** - remote development,
+- **GitHub Actions Secrets** - CI/CD automation when needed.
 
-Nie commituj `.env`, `.env.local`, kluczy Supabase, Resend, Cloudflare R2 ani sekretów autoryzacyjnych.
+Never commit `.env`, `.env.local`, Supabase keys, Resend keys, Cloudflare R2 keys, database URLs, auth secrets, or `.vercel` project metadata.
 
-Szczegółowa instrukcja połączenia Vercel + Supabase znajduje się w:
+Follow [docs/SETUP.md](docs/SETUP.md) to connect each service. See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for the environment variable reference.
+
+## Recommended Environments
 
 ```txt
-docs/env-local.md
+main        -> Vercel production + Supabase production
+staging     -> Vercel preview/staging + Supabase staging/dev
+feature/*   -> Vercel preview + Supabase dev/staging
+Codespaces  -> Supabase dev/staging, never production unless necessary
 ```
 
-## Zalecany podział środowisk
+## Repo Structure
 
-```txt
-main        → produkcja Vercel + Supabase production
-staging     → preview/staging Vercel + Supabase staging/dev
-feature/*   → preview Vercel + Supabase dev/staging
-Codespaces  → Supabase dev/staging, nigdy produkcja bez potrzeby
-```
-
-## Pliki konfiguracyjne
-
-- `.devcontainer/devcontainer.json` — konfiguracja GitHub Codespaces,
-- `.env.example` — lista wymaganych zmiennych,
-- `docs/env-local.md` — instrukcja konfiguracji `.env.local`, Vercel i Supabase,
-- `.gitignore` — wykluczenia dla Node, Next, env, logów i buildów,
-- `.github/workflows/remote-ready.yml` — lekki check konfiguracji repo.
+- `.env.example` - safe template for required environment variables.
+- `docs/SETUP.md` - step-by-step service connection guide.
+- `docs/ENVIRONMENT.md` - environment variable reference.
+- `AGENTS.md` - working instructions for Codex and future coding agents.
+- `supabase/config.toml` - local Supabase CLI project config.
+- `.github/` - GitHub issue, PR, and lightweight repo-check workflow files.
+- `src/server/storage` - private Cloudflare R2 helpers and signed URL generation.
+- `src/server/documents` - DOCX generation service and future PDF converter interface.
+- `src/server/inngest` - background workflow functions.
+- `prisma/schema.prisma` - database models for users, organizations, templates, jobs, generated documents, audit logs, and form submissions.

@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  LAWYER
+  OPERATOR
+  CLIENT
+  READ_ONLY
+}
+
+enum DocumentType {
+  PRIVACY_POLICY
+  RODO_POLICY
+  PROCESSING_REGISTER
+  PROCESSING_AGREEMENT
+  DPIA
+  COOKIE_POLICY
+  DATA_BREACH_PROCEDURE
+  DATA_SUBJECT_REQUEST_PROCEDURE
+  CLEAN_DESK_POLICY
+  IT_SECURITY_INSTRUCTION
+  AUTHORIZATION_TEMPLATE
+  TRAINING_MATERIAL
+}
+
+enum DocumentTemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum DocumentGenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum GeneratedDocumentStatus {
+  DRAFT
+  GENERATED
+  DELIVERED
+  ARCHIVED
+}
+
+enum FormSubmissionStatus {
+  DRAFT
+  SUBMITTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  passwordHash String
+  role      UserRole @default(CLIENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clientProfiles ClientProfile[]
+  createdTemplates DocumentTemplate[] @relation("TemplateCreatedBy")
+  approvedTemplates DocumentTemplate[] @relation("TemplateApprovedBy")
+  generationJobs DocumentGenerationJob[]
+  generatedDocuments GeneratedDocument[]
+  auditLogs AuditLog[]
+  formSubmissions FormSubmission[]
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  nip         String?
+  regon       String?
+  website     String?
+  email       String?
+  phone       String?
+  addressLine1 String?
+  addressLine2 String?
+  postalCode  String?
+  city        String?
+  country     String?  @default("PL")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clientProfiles ClientProfile[]
+  generationJobs DocumentGenerationJob[]
+  generatedDocuments GeneratedDocument[]
+  auditLogs AuditLog[]
+  formSubmissions FormSubmission[]
+}
+
+model ClientProfile {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model DocumentTemplate {
+  id              String @id @default(cuid())
+  type            DocumentType
+  name            String
+  version         Int
+  status          DocumentTemplateStatus @default(DRAFT)
+  fileKey         String
+  variablesSchema Json
+  createdById     String
+  approvedById    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy User @relation("TemplateCreatedBy", fields: [createdById], references: [id])
+  approvedBy User? @relation("TemplateApprovedBy", fields: [approvedById], references: [id])
+  generationJobs DocumentGenerationJob[]
+  generatedDocuments GeneratedDocument[]
+
+  @@unique([type, version])
+  @@index([status])
+}
+
+model DocumentGenerationJob {
+  id             String @id @default(cuid())
+  organizationId String
+  templateId     String
+  status         DocumentGenerationStatus @default(PENDING)
+  inputSnapshot  Json
+  errorMessage   String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  completedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  template DocumentTemplate @relation(fields: [templateId], references: [id])
+  createdBy User @relation(fields: [createdById], references: [id])
+  generatedDocument GeneratedDocument?
+
+  @@index([organizationId])
+  @@index([templateId])
+  @@index([status])
+}
+
+model GeneratedDocument {
+  id              String @id @default(cuid())
+  organizationId  String
+  templateId      String
+  templateVersion Int
+  generationJobId String @unique
+  type            DocumentType
+  status          GeneratedDocumentStatus @default(DRAFT)
+  inputSnapshot   Json
+  docxFileKey     String
+  pdfFileKey      String?
+  zipFileKey      String?
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  template DocumentTemplate @relation(fields: [templateId], references: [id])
+  generationJob DocumentGenerationJob @relation(fields: [generationJobId], references: [id])
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([templateId])
+  @@index([status])
+}
+
+model AuditLog {
+  id             String @id @default(cuid())
+  userId         String?
+  organizationId String?
+  action         String
+  entityType     String
+  entityId       String
+  metadata       Json
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model FormSubmission {
+  id             String @id @default(cuid())
+  organizationId String
+  formType       String
+  status         FormSubmissionStatus @default(DRAFT)
+  data           Json
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy User? @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([formType])
+  @@index([status])
+}
