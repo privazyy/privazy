@@ -1,0 +1,23 @@
+name: Remote-ready checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  config:
+    name: Validate remote development config
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required files
+        run: |
+          test -f README.md
+          test -f .gitignore
+          test -f .env.example
+          test -f .devcontainer/devcontainer.json
+          node -e "JSON.parse(require('fs').readFileSync('.devcontainer/devcontainer.json', 'utf8')); console.log('devcontainer.json OK')"
+          echo "Remote development setup OK"
