@@ -42,6 +42,12 @@ W repo trzymaj tylko `.env.example`. Prawdziwe wartości dodawaj osobno w:
 
 Nie commituj `.env`, `.env.local`, kluczy Supabase, Resend, Cloudflare R2 ani sekretów autoryzacyjnych.
 
+Szczegółowa instrukcja połączenia Vercel + Supabase znajduje się w:
+
+```txt
+docs/env-local.md
+```
+
 ## Zalecany podział środowisk
 
 ```txt
@@ -55,5 +61,6 @@ Codespaces  → Supabase dev/staging, nigdy produkcja bez potrzeby
 
 - `.devcontainer/devcontainer.json` — konfiguracja GitHub Codespaces,
 - `.env.example` — lista wymaganych zmiennych,
+- `docs/env-local.md` — instrukcja konfiguracji `.env.local`, Vercel i Supabase,
 - `.gitignore` — wykluczenia dla Node, Next, env, logów i buildów,
 - `.github/workflows/remote-ready.yml` — lekki check konfiguracji repo.
