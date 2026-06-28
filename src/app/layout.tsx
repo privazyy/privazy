@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +12,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
+  subsets: ["latin", "latin-ext"],
+  weight: ["500", "600", "700", "800"],
+});
+
 export const metadata: Metadata = {
   title: "PRIVAZY",
   description: "Legaltech workspace for privacy and RODO document workflows.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -23,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pl" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="pl" className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable}`}>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

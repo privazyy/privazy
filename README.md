@@ -44,6 +44,7 @@ Keep only `.env.example` in git. Store real values separately in:
 Never commit `.env`, `.env.local`, Supabase keys, Resend keys, Cloudflare R2 keys, database URLs, auth secrets, or `.vercel` project metadata.
 
 Follow [docs/SETUP.md](docs/SETUP.md) to connect each service. See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for the environment variable reference.
+Use [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) as the UI constitution and [docs/RESPONSIVE.md](docs/RESPONSIVE.md) as the viewport formula for landing, CRM, and every new component.
 
 ## Recommended Environments
 
@@ -59,6 +60,8 @@ Codespaces  -> Supabase dev/staging, never production unless necessary
 - `.env.example` - safe template for required environment variables.
 - `docs/SETUP.md` - step-by-step service connection guide.
 - `docs/ENVIRONMENT.md` - environment variable reference.
+- `docs/DESIGN_SYSTEM.md` - PRIVAZY brand, token, layout, copy, and component constitution.
+- `docs/RESPONSIVE.md` - responsive UI rules and viewport verification command.
 - `AGENTS.md` - working instructions for Codex and future coding agents.
 - `supabase/config.toml` - local Supabase CLI project config.
 - `.github/` - GitHub issue, PR, and lightweight repo-check workflow files.

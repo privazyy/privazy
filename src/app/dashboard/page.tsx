@@ -11,9 +11,14 @@ export default function DashboardPage() {
             Operacyjny widok startowy pod formularze, dokumenty i statusy jobów.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/documents">Dokumenty</Link>
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild>
+            <Link href="/admin">CRM</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/documents">Dokumenty</Link>
+          </Button>
+        </div>
       </div>
     </main>
   );

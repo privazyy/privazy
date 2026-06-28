@@ -4,18 +4,20 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] px-4 py-2 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--dur-fast)] ease-[var(--ease-standard)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] disabled:pointer-events-none disabled:opacity-50 active:translate-y-px [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        default: "bg-[var(--brand)] text-[var(--text-on-brand)] shadow-[var(--shadow-brand-sm)] hover:bg-[var(--brand-hover)]",
+        outline: "border border-[var(--border-default)] bg-[var(--surface-card)] text-[var(--text-body)] hover:border-[var(--border-brand)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-ink)]",
+        ghost: "text-[var(--text-body)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-ink)]",
+        soft: "bg-[var(--brand-soft)] text-[var(--brand-ink)] hover:bg-[var(--brand-soft-2)]",
+        danger: "bg-[var(--danger)] text-[var(--text-on-brand)] shadow-[var(--shadow-sm)] hover:bg-[var(--red-600)]",
       },
       size: {
         default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
+        sm: "h-9 rounded-[var(--radius-md)] px-3",
+        lg: "h-11 rounded-[var(--radius-md)] px-8",
         icon: "size-10",
       },
     },

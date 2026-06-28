@@ -30,6 +30,8 @@ jobs:
           test -f AGENTS.md
           test -f docs/SETUP.md
           test -f docs/ENVIRONMENT.md
+          test -f docs/DESIGN_SYSTEM.md
+          test -f docs/RESPONSIVE.md
 
       - name: Check that env examples do not contain filled secrets
         run: |

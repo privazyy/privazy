@@ -73,7 +73,7 @@ Recommended GitHub secrets when CI/deployment automation is added:
 - `SUPABASE_ACCESS_TOKEN`
 - `SUPABASE_PROJECT_REF`
 
-The current workflow is intentionally lightweight because no application framework exists yet.
+The current workflow runs dependency install, Prisma client generation, lint, typecheck, and build.
 
 ## 5. Codex
 
@@ -99,3 +99,14 @@ Start the app:
 ```bash
 npm run dev
 ```
+
+Run local verification before UI handoff:
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npm run responsive:check
+```
+
+`npm run responsive:check` expects the app to be available at `http://localhost:3000`. The responsive rules live in [RESPONSIVE.md](RESPONSIVE.md).

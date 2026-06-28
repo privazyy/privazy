@@ -1,48 +1,47 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, FileText, ShieldCheck, Workflow } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Logo } from "@/components/ui/logo";
 
-const pillars = [
-  { icon: ShieldCheck, label: "RODO-ready", text: "Role, audyt i prywatne pliki od pierwszego dnia." },
-  { icon: FileText, label: "DOCX templates", text: "Szablony wersjonowane i generowanie przez Docxtemplater." },
-  { icon: Workflow, label: "Workflow", text: "Inngest pod kolejki, retry i dłuższe procesy." },
-];
+export const metadata: Metadata = {
+  title: "privazy. - nowy landing w przygotowaniu",
+  description: "Design-system foundation for the new PRIVAZY landing page.",
+};
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-background">
-      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-6 py-12">
-        <div className="max-w-3xl">
-          <p className="mb-4 text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            PRIVAZY
-          </p>
-          <h1 className="text-4xl font-semibold tracking-normal text-foreground sm:text-6xl">
-            Legaltech workspace dla dokumentów RODO.
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Solidny fundament pod formularze, generowanie dokumentów, audyt,
-            bezpieczny storage i przyszłe moduły AI.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild>
-              <Link href="/dashboard">
-                Dashboard <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/documents">Dokumenty</Link>
-            </Button>
-          </div>
-        </div>
-        <div className="mt-14 grid gap-4 md:grid-cols-3">
-          {pillars.map((pillar) => (
-            <div key={pillar.label} className="rounded-lg border bg-card p-5 text-card-foreground">
-              <pillar.icon className="mb-4 size-5 text-muted-foreground" />
-              <h2 className="font-medium">{pillar.label}</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{pillar.text}</p>
+    <main className="min-h-screen bg-[var(--surface-page)] text-[var(--text-body)]">
+      <section className="pvz-container flex min-h-screen items-center py-12 sm:py-16">
+        <Card as="section" className="w-full" padding="lg" variant="flat">
+          <div className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl min-w-0">
+              <Logo size="lg" />
+              <p className="mt-8 text-sm font-semibold uppercase tracking-[var(--ls-wide)] text-[var(--brand-ink)]">
+                Landing page
+              </p>
+              <h1 className="mt-4 text-[length:var(--fs-h1)] leading-[var(--lh-tight)]">
+                Nowy layout landing page jest gotowy do wdrozenia.
+              </h1>
+              <p className="mt-5 max-w-2xl text-[length:var(--fs-lead)] leading-[var(--lh-relaxed)] text-[var(--text-muted)]">
+                Poprzedni landing zostal usuniety z produkcyjnych komponentow. Zostaje czysty fundament oparty o tokeny,
+                komponenty UI i zasady responsywnosci PRIVAZY.
+              </p>
             </div>
-          ))}
-        </div>
+            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+              <Button asChild size="lg">
+                <Link href="/admin">
+                  Przejdz do CRM
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/sklep/polityka-prywatnosci">Otworz sklep</Link>
+              </Button>
+            </div>
+          </div>
+        </Card>
       </section>
     </main>
   );
