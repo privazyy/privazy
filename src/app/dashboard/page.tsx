@@ -1,7 +1,11 @@
 import Link from "next/link";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Button } from "@/components/ui/button";
+import { requireUser } from "@/server/auth/guards";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  await requireUser({ mode: "redirect", redirectTo: "/login?callbackUrl=/dashboard" });
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div className="flex items-center justify-between gap-4">
@@ -18,6 +22,7 @@ export default function DashboardPage() {
           <Button variant="outline" asChild>
             <Link href="/documents">Dokumenty</Link>
           </Button>
+          <SignOutButton />
         </div>
       </div>
     </main>

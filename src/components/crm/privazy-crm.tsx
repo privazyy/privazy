@@ -3,6 +3,7 @@
 import * as Lucide from "lucide-react";
 import { useState, type ComponentType, type SVGProps } from "react";
 
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -888,6 +889,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
                 </div>
                 <CrmIcon className="size-4 text-[var(--text-faint)]" name="ChevronDown" />
               </div>
+              <SignOutButton className="hidden md:inline-flex" />
             </div>
           </header>
 
