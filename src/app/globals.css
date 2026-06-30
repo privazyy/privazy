@@ -346,3 +346,80 @@ canvas {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+.lp-cta {
+  transition: box-shadow var(--dur-slow) var(--ease-standard);
+}
+
+.lp-cta:hover {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent),
+    0 0 20px 2px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+.lp-link:hover {
+  text-decoration: underline;
+}
+
+.lp-foot a:hover {
+  color: var(--white);
+}
+
+@keyframes lpFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lpScrim {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lpPop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-cta {
+    transition: none;
+  }
+}
+
+.pvz-crm-row:hover {
+  background: var(--gray-50);
+}
+
+.pvz-crm-hover:hover {
+  background: var(--gray-100);
+}
+
+.pvz-crm-card-hover {
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.pvz-crm-card-hover:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}

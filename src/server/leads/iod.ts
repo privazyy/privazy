@@ -4,12 +4,15 @@ import { Prisma, type FormSubmission, type Organization } from "@prisma/client";
 import { z } from "zod";
 
 import {
+  calculateIodAssessment,
   calculateIodResult,
   iodScaleLabels,
   iodSectorLabels,
+  resultLabelForComplianceStatus,
   type IodCheckerAnswers,
   type IodResultLevel,
 } from "@/lib/iod-checker";
+import type { IodObligationOutput, IodObligationStatus } from "@/lib/iod-obligation-checker";
 import { getPrisma } from "@/server/db/prisma";
 
 export const IOD_LEAD_FORM_TYPE = "iod_checker_lead";
@@ -65,6 +68,7 @@ type IodLeadSubmissionData = {
     skala: string;
   };
   result: ReturnType<typeof calculateIodResult>;
+  complianceResult: IodObligationOutput;
   contact: IodLeadPayload["contact"];
   consents: {
     privacy: true;
@@ -92,7 +96,8 @@ type SubmissionWithOrganization = FormSubmission & {
 
 export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMeta) {
   const prisma = getPrisma();
-  const result = calculateIodResult(payload.answers);
+  const complianceResult = calculateIodAssessment(payload.answers, payload.contact.company);
+  const result = calculateIodResult(payload.answers, complianceResult);
   const owner = pickLeadOwner(result.level);
 
   const created = await prisma.$transaction(async (tx) => {
@@ -112,6 +117,7 @@ export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMe
         skala: iodScaleLabels[payload.answers.skala],
       },
       result,
+      complianceResult,
       contact: payload.contact,
       consents: {
         privacy: true,
@@ -129,7 +135,7 @@ export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMe
         hot: result.hot,
       },
       submittedAt: new Date().toISOString(),
-      formVersion: "iod-checker-v1",
+      formVersion: "iod-checker-v2",
     };
 
     const submission = await tx.formSubmission.create({
@@ -148,6 +154,7 @@ export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMe
     leadId: created.submission.id,
     organizationId: created.organization.id,
     result,
+    complianceResult,
   };
 }
 
@@ -174,20 +181,23 @@ export async function listIodCrmLeads(limit = 50) {
 
 export function mapSubmissionToCrmLead(submission: SubmissionWithOrganization) {
   const data = readSubmissionData(submission.data);
-  const level = data.result?.level ?? "verification";
+  const complianceStatus = data.complianceResult?.obligation_status;
+  const level = data.result?.level ?? fallbackLevelForComplianceStatus(complianceStatus);
   const owner = data.lead?.owner ?? pickLeadOwner(level);
   const value = data.lead?.value ?? estimateFallbackValue(level);
+  const hot = data.lead?.hot ?? level === "required";
 
   return {
     id: submission.id,
     company: submission.organization.name,
     industry: data.labels?.branza ?? "Nie wskazano",
     source: data.lead?.source ?? "Landing / Checker IOD",
+    resultLabel: resultLabelForComplianceStatus(complianceStatus) ?? (hot ? "IOD wymagany" : "Do weryfikacji"),
     value,
     stage: data.lead?.stage ?? "Nowy",
     owner,
     lastActivity: formatRelativeActivity(submission.createdAt),
-    hot: data.lead?.hot ?? level === "required",
+    hot,
   };
 }
 
@@ -200,6 +210,12 @@ function pickLeadOwner(level: IodResultLevel) {
   if (level === "required") return "AK";
   if (level === "verification") return "MW";
   return "JZ";
+}
+
+function fallbackLevelForComplianceStatus(status?: IodObligationStatus): IodResultLevel {
+  if (status === "required" || status === "likely_required") return "required";
+  if (status === "not_required" || status === "likely_not_required") return "not_required";
+  return "verification";
 }
 
 function estimateFallbackValue(level: IodResultLevel) {
