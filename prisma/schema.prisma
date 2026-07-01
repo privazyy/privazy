@@ -220,6 +220,35 @@ enum DataSubjectRequestStatus {
   ARCHIVED
 }
 
+enum ClientOrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+  BILLING
+}
+
+enum ClientMessageThreadStatus {
+  OPEN
+  CLOSED
+}
+
+enum ClientMessageSenderType {
+  CLIENT
+  PRIVAZY
+  SYSTEM
+}
+
+enum ClientTimelineEventType {
+  BREACH_CREATED
+  REQUEST_CREATED
+  DOCUMENT_FORM_SUBMITTED
+  DOCUMENT_DOWNLOADED
+  MESSAGE_SENT
+  TASK_COMPLETED
+  ORGANIZATION_UPDATED
+  SYSTEM
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -250,6 +279,10 @@ model User {
   createdBreachIncidents BreachIncident[] @relation("BreachIncidentCreatedBy")
   assignedDataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestAssignedTo")
   createdDataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestCreatedBy")
+  documentDownloads DocumentDownload[]
+  clientTimelineEvents ClientTimelineEvent[] @relation("ClientTimelineActor")
+  createdClientMessageThreads ClientMessageThread[] @relation("ClientMessageThreadCreatedBy")
+  clientMessages ClientMessage[] @relation("ClientMessageSender")
 }
 
 model Organization {
@@ -285,12 +318,19 @@ model Organization {
   crmCalendarEvents CrmCalendarEvent[]
   breachIncidents BreachIncident[]
   dataSubjectRequests DataSubjectRequest[]
+  documentDownloads DocumentDownload[]
+  clientTimelineEvents ClientTimelineEvent[]
+  clientMessageThreads ClientMessageThread[]
+  clientMessages ClientMessage[]
 }
 
 model ClientProfile {
   id             String   @id @default(cuid())
   userId         String
   organizationId String
+  role           ClientOrganizationRole @default(MEMBER)
+  invitedAt      DateTime?
+  acceptedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -299,6 +339,7 @@ model ClientProfile {
 
   @@unique([userId, organizationId])
   @@index([organizationId])
+  @@index([role])
 }
 
 model DocumentTemplate {
@@ -365,6 +406,7 @@ model GeneratedDocument {
   template DocumentTemplate @relation(fields: [templateId], references: [id])
   generationJob DocumentGenerationJob @relation(fields: [generationJobId], references: [id])
   createdBy User @relation(fields: [createdById], references: [id])
+  downloads DocumentDownload[]
 
   @@index([organizationId])
   @@index([templateId])
@@ -395,6 +437,7 @@ model AuditLog {
 model FormSubmission {
   id             String @id @default(cuid())
   organizationId String
+  orderItemId    String?
   formType       String
   status         FormSubmissionStatus @default(DRAFT)
   data           Json
@@ -403,10 +446,12 @@ model FormSubmission {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
   createdBy User? @relation(fields: [createdById], references: [id])
   crmLead CrmLead?
 
   @@index([organizationId])
+  @@index([orderItemId])
   @@index([formType])
   @@index([status])
 }
@@ -624,6 +669,92 @@ model DataSubjectRequest {
   @@index([assignedToId])
 }
 
+model DocumentDownload {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  generatedDocumentId String
+  userId              String?
+  fileType            String
+  ipAddress           String?
+  userAgent           String?
+  createdAt           DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([generatedDocumentId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ClientTimelineEvent {
+  id             String                  @id @default(cuid())
+  organizationId String
+  actorId        String?
+  type           ClientTimelineEventType @default(SYSTEM)
+  title          String
+  body           String?
+  entityType     String?
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime                @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor User? @relation("ClientTimelineActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([actorId])
+  @@index([type])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model ClientMessageThread {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  createdById       String?
+  subject           String
+  status            ClientMessageThreadStatus @default(OPEN)
+  relatedEntityType String?
+  relatedEntityId   String?
+  lastMessageAt     DateTime                  @default(now())
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ClientMessageThreadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  messages ClientMessage[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([status])
+  @@index([relatedEntityType, relatedEntityId])
+  @@index([lastMessageAt])
+}
+
+model ClientMessage {
+  id             String                  @id @default(cuid())
+  threadId       String
+  organizationId String
+  senderUserId   String?
+  senderType     ClientMessageSenderType
+  body           String
+  attachmentKeys Json?
+  createdAt      DateTime                @default(now())
+
+  thread ClientMessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  senderUser User? @relation("ClientMessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([threadId])
+  @@index([organizationId])
+  @@index([senderUserId])
+  @@index([senderType])
+  @@index([createdAt])
+}
+
 model Product {
   id               String        @id @default(cuid())
   name             String
@@ -833,6 +964,7 @@ model OrderItem {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
+  formSubmissions FormSubmission[]
 
   @@index([orderId])
   @@index([status])
