@@ -37,7 +37,9 @@ function CrmAccessDenied() {
           Zaloguj sie kontem z rola ADMIN, LAWYER, OPERATOR albo READ_ONLY. Dane operacyjne nie sa pobierane bez poprawnej roli.
         </p>
         <Button asChild className="mt-6">
-          <Link href="/api/auth/signin?callbackUrl=/admin">Zaloguj sie</Link>
+          <Link href={{ pathname: "/api/auth/signin", query: { callbackUrl: "/admin" } }} prefetch={false}>
+            Zaloguj sie
+          </Link>
         </Button>
       </Card>
     </main>
