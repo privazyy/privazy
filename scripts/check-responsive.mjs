@@ -4,13 +4,20 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const baseUrl = (process.env.RESPONSIVE_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-const routes = [
+const defaultRoutes = [
   "/",
   "/admin",
   "/blog",
   "/blog/czy-musisz-powolac-inspektora-ochrony-danych",
+  "/uslugi/outsourcing-iod",
+  "/uslugi/dokumentacja-rodo",
+  "/branze/ecommerce",
+  "/branze/placowki-medyczne",
   "/sklep/polityka-prywatnosci",
 ];
+const routes = process.env.RESPONSIVE_ROUTES
+  ? process.env.RESPONSIVE_ROUTES.split(",").map((route) => route.trim()).filter(Boolean)
+  : defaultRoutes;
 const viewports = [
   { name: "mobile-360", width: 360, height: 780 },
   { name: "mobile-390", width: 390, height: 900 },
