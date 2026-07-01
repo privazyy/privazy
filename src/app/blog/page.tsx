@@ -8,6 +8,15 @@ export const metadata: Metadata = {
   title: "Blog PRIVAZY - RODO, IOD i ochrona danych",
   description:
     "Praktyczne artykuły o RODO, obowiązku IOD, dokumentacji ochrony danych i zmianach w prawie dla firm.",
+  alternates: {
+    canonical: "/blog",
+  },
+  openGraph: {
+    title: "Blog PRIVAZY - RODO, IOD i ochrona danych",
+    description:
+      "Praktyczne artykuły o RODO, obowiązku IOD, dokumentacji ochrony danych i zmianach w prawie dla firm.",
+    url: "/blog",
+  },
 };
 
 export default function BlogPage() {
