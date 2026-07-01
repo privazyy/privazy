@@ -59,6 +59,84 @@ enum FormSubmissionStatus {
   FAILED
 }
 
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProductType {
+  DOCUMENT
+  TEMPLATE
+  PACKAGE
+  SERVICE
+  SUBSCRIPTION
+}
+
+enum CartStatus {
+  ACTIVE
+  CHECKED_OUT
+  ABANDONED
+  MERGED
+}
+
+enum CustomerType {
+  PERSON
+  COMPANY
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PAYMENT_FAILED
+  CANCELLED
+  FULFILLING
+  COMPLETED
+  REFUNDED
+}
+
+enum OrderItemStatus {
+  PENDING_PAYMENT
+  INPUT_REQUIRED
+  IN_PROGRESS
+  READY
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  MOCK
+  PRZELEWY24
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum InvoiceProvider {
+  MOCK
+  EXTERNAL
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  FAILED
+  CANCELLED
+}
+
+enum CouponStatus {
+  ACTIVE
+  DISABLED
+  EXPIRED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -75,6 +153,9 @@ model User {
   generatedDocuments GeneratedDocument[]
   auditLogs AuditLog[]
   formSubmissions FormSubmission[]
+  carts Cart[]
+  orders Order[]
+  billingProfiles BillingProfile[]
 }
 
 model Organization {
@@ -98,6 +179,10 @@ model Organization {
   generatedDocuments GeneratedDocument[]
   auditLogs AuditLog[]
   formSubmissions FormSubmission[]
+  carts Cart[]
+  orders Order[]
+  billingProfiles BillingProfile[]
+  invoices Invoice[]
 }
 
 model ClientProfile {
@@ -220,5 +305,270 @@ model FormSubmission {
 
   @@index([organizationId])
   @@index([formType])
+  @@index([status])
+}
+
+model Product {
+  id               String        @id @default(cuid())
+  name             String
+  slug             String        @unique
+  shortDescription String
+  description      String
+  status           ProductStatus @default(DRAFT)
+  productType      ProductType
+  priceNetCents    Int
+  vatRateBps       Int           @default(2300)
+  currency         String        @default("PLN")
+  includedFiles    Json
+  expectedDelivery String
+  legalDisclaimer  String
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  variants ProductVariant[]
+  cartItems CartItem[]
+  orderItems OrderItem[]
+
+  @@index([status])
+  @@index([productType])
+}
+
+model ProductVariant {
+  id               String        @id @default(cuid())
+  productId        String
+  name             String
+  slug             String
+  status           ProductStatus @default(ACTIVE)
+  priceNetCents    Int
+  vatRateBps       Int           @default(2300)
+  currency         String        @default("PLN")
+  includedFiles    Json
+  expectedDelivery String
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems CartItem[]
+  orderItems OrderItem[]
+
+  @@unique([productId, slug])
+  @@index([status])
+}
+
+model Coupon {
+  id             String       @id @default(cuid())
+  code           String       @unique
+  status         CouponStatus @default(ACTIVE)
+  percentOffBps  Int?
+  amountOffCents Int?
+  currency       String       @default("PLN")
+  maxRedemptions Int?
+  redeemedCount  Int          @default(0)
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  carts Cart[]
+  orders Order[]
+
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model Cart {
+  id             String     @id @default(cuid())
+  sessionToken   String     @unique
+  status         CartStatus @default(ACTIVE)
+  userId         String?
+  organizationId String?
+  couponId       String?
+  currency       String     @default("PLN")
+  subtotalNetCents Int      @default(0)
+  vatCents       Int        @default(0)
+  discountCents  Int        @default(0)
+  totalGrossCents Int       @default(0)
+  expiresAt      DateTime?
+  checkedOutAt   DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user User? @relation(fields: [userId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  coupon Coupon? @relation(fields: [couponId], references: [id])
+  items CartItem[]
+  orders Order[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+model CartItem {
+  id             String   @id @default(cuid())
+  cartId         String
+  productId      String
+  variantId      String?
+  quantity       Int      @default(1)
+  unitNetCents   Int
+  vatRateBps     Int
+  currency       String   @default("PLN")
+  productSnapshot Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@unique([cartId, productId, variantId])
+  @@index([cartId])
+  @@index([productId])
+}
+
+model BillingProfile {
+  id             String       @id @default(cuid())
+  customerType   CustomerType
+  organizationId String?
+  userId         String?
+  name           String
+  email          String
+  phone          String?
+  companyName    String?
+  nip            String?
+  addressLine1   String
+  addressLine2   String?
+  postalCode     String
+  city           String
+  country        String       @default("PL")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+  orders Order[]
+
+  @@index([email])
+  @@index([nip])
+  @@index([organizationId])
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  orderNumber       String      @unique
+  publicAccessToken String      @unique
+  status            OrderStatus @default(PENDING_PAYMENT)
+  userId            String?
+  organizationId    String
+  billingProfileId  String
+  cartId            String?
+  couponId          String?
+  email             String
+  phone             String?
+  currency          String      @default("PLN")
+  subtotalNetCents  Int
+  vatCents          Int
+  discountCents     Int         @default(0)
+  totalGrossCents   Int
+  source            Json?
+  paidAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user User? @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  billingProfile BillingProfile @relation(fields: [billingProfileId], references: [id])
+  cart Cart? @relation(fields: [cartId], references: [id])
+  coupon Coupon? @relation(fields: [couponId], references: [id])
+  items OrderItem[]
+  payments Payment[]
+  invoices Invoice[]
+
+  @@index([status])
+  @@index([organizationId])
+  @@index([billingProfileId])
+  @@index([email])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id              String          @id @default(cuid())
+  orderId         String
+  productId       String
+  variantId       String?
+  status          OrderItemStatus @default(PENDING_PAYMENT)
+  productName     String
+  productSlug     String
+  productType     ProductType
+  quantity        Int             @default(1)
+  unitNetCents    Int
+  vatRateBps      Int
+  subtotalNetCents Int
+  vatCents        Int
+  totalGrossCents Int
+  currency        String          @default("PLN")
+  productSnapshot Json
+  inputFormPath   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+  @@index([status])
+  @@index([productId])
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  orderId           String
+  provider          PaymentProvider @default(MOCK)
+  status            PaymentStatus   @default(PENDING)
+  providerPaymentId String?
+  idempotencyKey    String          @unique
+  amountGrossCents  Int
+  currency          String          @default("PLN")
+  paymentUrl        String?
+  rawProviderData   Json?
+  paidAt            DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([provider, providerPaymentId])
+}
+
+model Invoice {
+  id               String          @id @default(cuid())
+  orderId          String
+  organizationId   String
+  provider         InvoiceProvider @default(MOCK)
+  status           InvoiceStatus   @default(DRAFT)
+  invoiceNumber    String          @unique
+  externalInvoiceId String?
+  externalUrl      String?
+  buyerSnapshot    Json
+  itemsSnapshot    Json
+  subtotalNetCents Int
+  vatCents         Int
+  totalGrossCents  Int
+  currency         String          @default("PLN")
+  issuedAt         DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([orderId])
+  @@index([organizationId])
   @@index([status])
 }
