@@ -50,3 +50,12 @@ These must not be exposed to browser/client code.
 - Use `.env.local` for local development.
 - Use Vercel Project Settings for deployed environment values.
 - Use GitHub repository secrets for GitHub Actions.
+
+## Phase 2 data model
+
+The Phase 2 Prisma data model does not add new environment variable names. Prisma generation can be validated with temporary local URLs, but real migrations and seed execution require:
+
+- `DATABASE_URL` for the pooled/runtime database connection.
+- `DIRECT_URL` for Prisma migrations.
+
+Supabase Data API access, explicit grants and RLS policies must be handled in future reviewed SQL migrations before exposing any newly added tables to browser-facing clients.

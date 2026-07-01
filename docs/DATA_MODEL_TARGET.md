@@ -1,61 +1,44 @@
-# PRIVAZY Target Data Model
+# PRIVAZY target data model
 
-This document describes the Phase 2 target data model for the full PRIVAZY platform. The Prisma schema keeps the original MVP models and adds the tables needed for shop, CRM, client platform, documents, marketing and automation.
+Status: Phase 2 target schema.
 
-## Design Principles
+This document describes the target Prisma data model added for the full PRIVAZY platform. It is intentionally data-first: it prepares tables, enums, relations, indexes and seed surfaces without building the full shop UI, checkout, client platform or CRM CRUD.
 
-- Existing models stay compatible: `User`, `Organization`, `ClientProfile`, `DocumentTemplate`, `DocumentGenerationJob`, `GeneratedDocument`, `AuditLog` and `FormSubmission` remain in place.
-- IDs continue to use `String @default(cuid())` for compatibility with the existing schema and code. A future major migration may evaluate UUIDv7 or identity columns, but Phase 2 avoids changing primary-key strategy.
-- Money is stored as integer minor units, for example `priceCents`, `totalCents`, `vatCents`. Currency is stored separately, defaulting to `PLN`.
-- VAT is stored as basis points in `vatRateBps`, for example `2300` means 23%.
-- Status fields are Prisma enums, not free-form strings.
-- Foreign keys used in common joins are indexed.
-- Operational list views use composite indexes such as `[status, createdAt]`, `[organizationId, status]`, `[ownerId, status]`.
-- JSON is used only for flexible payloads that are product-specific, content-specific or integration-specific.
+## Scope decisions
 
-## Identity And Auth
+- Existing models remain in place: `User`, `Organization`, `ClientProfile`, `DocumentTemplate`, `DocumentGenerationJob`, `GeneratedDocument`, `AuditLog` and `FormSubmission`.
+- `ClientProfile` is extended as the organization membership layer. Global `UserRole` stays separate from per-organization `OrganizationMemberRole`.
+- Money is stored as integer cents, for example `netAmountCents`, `vatAmountCents` and `grossAmountCents`. This avoids floating point errors and is sufficient for PLN/EUR checkout, payments and invoices. VAT rate is stored as basis points in `vatRateBps`, so 23% is `2300`.
+- Currency is stored per commercial record as an ISO-like string, defaulting to `PLN`.
+- Workflow fields use enums where they drive product logic: order, payment, invoice, document, CRM, breach, DSAR, CMS, newsletter, automation and notification statuses.
+- Core foreign keys and status/date query paths have indexes. Prisma cannot express every future partial index, so high-volume filtered indexes should be added in later SQL migrations after real query patterns are known.
+- This phase does not expose new Supabase Data API grants or RLS policies. Supabase's 2026 default-grant change means future public/API-facing tables need explicit grants and RLS policies in reviewed SQL migrations.
 
-Existing:
+## Identity and auth
+
+Core models:
 
 - `User`
-- `UserRole`
+- `ClientProfile`
+- `OrganizationInvite`
 
-Added relationships from `User` to operational ownership and audit domains:
-
-- organization memberships and invites
-- CRM ownership
-- order/customer attribution
-- document generation, review and download events
-- blog authoring and revisions
-- newsletter campaigns
-- automation rules
-- notifications
-
-Global system role remains separate from organization role.
+`UserRole` remains a global system role. Organization access is represented by `ClientProfile.organizationRole` and `ClientProfile.status`, so one user can belong to many organizations with different client-side permissions.
 
 ## Organizations
 
-Existing:
+Core models:
 
 - `Organization`
-- `ClientProfile`
-
-Added:
-
-- `OrganizationUser`
-- `OrganizationInvite`
 - `BillingProfile`
 - `OrganizationSettings`
-- `ContactPerson`
-- `OrganizationMemberRole`
-- `OrganizationMemberStatus`
-- `OrganizationInviteStatus`
+- `ClientProfile`
+- `OrganizationInvite`
 
-`OrganizationUser` models many-to-many membership between users and organizations. `ClientProfile` remains for compatibility and receives `organizationRole` so client organization roles do not have to reuse global `UserRole`.
+The model supports multiple users per organization, multiple organizations per user, billing data, notification settings and invite lifecycle. Billing is separated from operational organization data so invoice data can stay stable even when organization profile data changes.
 
-## CRM, Leads And Sales
+## CRM and leads
 
-Added:
+Core models:
 
 - `Lead`
 - `LeadActivity`
@@ -63,99 +46,57 @@ Added:
 - `Deal`
 - `CrmTask`
 - `PipelineStage`
-- `LeadStatus`
-- `LeadSource`
-- `LeadActivityType`
-- `DealStatus`
-- `CrmTaskStatus`
-- `CrmTaskPriority`
-- `PipelineStageKind`
+- `ContactPerson`
 
-Key relationships:
+Leads can originate from the IOD checker through `Lead.source = IOD_CHECKER` and the optional `formSubmissionId` relation. A lead can be converted to an `Organization` and/or `Order`. Ownership is represented by `ownerId` to `User`; auditability is supported by activities, notes, tasks and `AuditLog`.
 
-- Lead can be linked to `FormSubmission`.
-- Lead can be owned by `User`.
-- Lead can be linked to `Organization` and converted to `Order`.
-- Deal can be linked to lead, organization, owner, stage and order.
-- CRM tasks can be linked to lead, deal, organization and stage.
+## Shop and catalog
 
-The IOD checker can continue writing `FormSubmission`, while later phases can create a normalized `Lead` that points back to that submission.
-
-## Shop And Catalog
-
-Added:
+Core models:
 
 - `ProductCategory`
 - `Product`
 - `ProductVariant`
 - `ProductPackage`
 - `ProductPackageItem`
-- `ProductStatus`
-- `ProductKind`
-- `ProductVariantStatus`
+- `Coupon`
 
-Products are catalog records. Variants hold price, currency and VAT. Packages are represented by a package product plus `ProductPackageItem` rows pointing to included variants.
+Products represent public catalog items. Variants carry prices, VAT and optional relation to a `DocumentTemplate`. Packages bundle variants/products for later checkout and fulfillment.
 
-## Cart, Orders, Payments And Invoices
+## Orders, payments and invoices
 
-Added:
+Core models:
 
 - `Cart`
 - `CartItem`
 - `Order`
 - `OrderItem`
 - `Payment`
-- `Invoice`
-- `Coupon`
 - `Refund`
-- `CartStatus`
-- `OrderStatus`
-- `OrderItemStatus`
-- `PaymentProvider`
-- `PaymentStatus`
-- `InvoiceStatus`
-- `CouponStatus`
-- `RefundStatus`
+- `Invoice`
+- `InvoiceLine`
 
-Important fields:
+Orders have separate business status, payment status and fulfillment status. The schema supports coupon attribution, order numbers, payment provider IDs, refunds, one invoice per order by default and invoice lines tied back to order items.
 
-- `orderNumber` is unique.
-- `invoiceNumber` is unique.
-- `providerPaymentId` and `providerRefundId` are unique when present.
-- order totals are stored in cents.
-- each order/payment/invoice can link to an organization.
-- `OrderItem` can link to document generation inputs and generated documents.
+## Document templates, inputs and generated documents
 
-## Document Templates, Inputs And Generated Documents
-
-Existing:
+Core models:
 
 - `DocumentTemplate`
+- `DocumentTemplateVersion`
+- `DocumentInput`
 - `DocumentGenerationJob`
 - `GeneratedDocument`
-
-Added:
-
-- `DocumentInput`
-- `DocumentTemplateVersion`
 - `GeneratedDocumentFile`
 - `DocumentDownload`
 - `DocumentReview`
 - `DocumentUpdate`
-- `DocumentInputStatus`
-- `DocumentFileType`
-- `DocumentReviewStatus`
-- `DocumentUpdateType`
 
-The current `DocumentTemplate.version` and file fields remain. `DocumentTemplateVersion` enables a fuller version history without breaking the existing contract.
+The existing document tables stay compatible. New tables add version history, structured input records, many files per generated document, download history, review status and update history. `GeneratedDocument` and `DocumentInput` can link to `OrderItem` for paid fulfillment.
 
-`GeneratedDocument` keeps `docxFileKey`, `pdfFileKey` and `zipFileKey` for compatibility, while `GeneratedDocumentFile` supports multiple files per document: DOCX, PDF, HTML, ZIP and other future formats.
+## Client platform
 
-`DocumentDownload` provides download history and is the target place to audit signed URL access.
-
-## Client Platform
-
-Added:
+Core models:
 
 - `BreachIncident`
 - `BreachAttachment`
@@ -169,126 +110,74 @@ Added:
 - `ComplianceReview`
 - `ComplianceScore`
 
-Incident model supports:
+The portal data model covers breach case management, DSAR case management, messages, tasks and recurring compliance reviews. Breach incidents include case numbers, risk, status, the 72 hour deadline, UODO and data-subject notification flags and assignment. DSAR records include request type, requester, intake channel, received date, due date, identity verification, response fields and assignment.
 
-- case number
-- organization
-- reporter and assigned person
-- type
-- description
-- risk
-- status
-- 72-hour deadline
-- UODO notification flags
-- data subject notification flags
-- comments, timeline and attachments
+## Blog and CMS
 
-Data subject request model supports:
-
-- request type
-- requester identity/contact fields
-- intake channel
-- received date
-- deadline
-- status
-- identity verification status
-- response summary
-- timeline events
-- assignee
-
-## Blog And CMS
-
-Added:
+Core models:
 
 - `BlogPost`
 - `BlogCategory`
 - `BlogTag`
+- `BlogPostCategory`
 - `BlogPostTag`
 - `BlogRevision`
-- `BlogPostStatus`
+- `SeoMetadata`
 
-SEO fields are stored directly on `BlogPost`:
+Blog content moves from code data toward database-managed content with draft, review, published and scheduled states. SEO metadata supports title, description, canonical URL, FAQ/schema JSON and noindex flags.
 
-- `seoTitle`
-- `metaDescription`
-- `canonicalUrl`
-- `faqSchema`
+## Newsletter and marketing
 
-The model supports draft, review, scheduled and published content with unique slugs and revision history.
-
-## Newsletter And Marketing
-
-Added:
+Core models:
 
 - `NewsletterSubscriber`
 - `NewsletterCampaign`
 - `NewsletterEvent`
 - `MarketingEvent`
-- `NewsletterSubscriberStatus`
-- `NewsletterCampaignStatus`
-- `NewsletterEventType`
-- `MarketingEventType`
+- `ConsentRecord`
 
-Subscribers store consent text, consent timestamp, source, UTM values and an unsubscribe token. Events track sent/opened/clicked/bounced/complained and subscription lifecycle events.
+Subscribers store status, source, UTM fields, consent evidence and unsubscribe tokens. Events capture subscription and email lifecycle events. `ConsentRecord` gives a shared consent audit surface for marketing, contact and legal acceptance.
 
-`MarketingEvent` is a generic tracking table for page views, product views, checker completions and checkout events.
+## Automations and notifications
 
-## Automations And Notifications
-
-Added:
+Core models:
 
 - `AutomationRule`
 - `AutomationRun`
 - `Notification`
-- `AutomationTriggerType`
-- `AutomationTargetType`
-- `AutomationStatus`
-- `AutomationRunStatus`
-- `NotificationStatus`
-- `NotificationType`
 
-Automation rules define trigger, target and JSON config. Runs store inputs, outputs, status and error message. Notifications target user and/or organization.
+Automation rules store trigger, target, conditions, actions, status, last run and errors. Runs store execution state and payload snapshots. Notifications can be tied to users, organizations, automation rules and runs.
 
-## Audit Logs
+## Audit logs and files/storage
 
-Existing `AuditLog` remains the primary event ledger. New models are designed so future service code can write audit entries for:
+Core models:
 
-- lead lifecycle
-- order/payment lifecycle
-- document downloads and reviews
-- breach incidents
-- data subject requests
-- automation runs
+- `AuditLog`
+- `FileObject`
 
-`AuditLog` still stores `metadata` as JSON for event-specific details.
+`AuditLog` remains the shared audit trail. `FileObject` is the storage registry for R2/S3-like objects and can be linked by generated document files and breach attachments. Future modules should attach file records instead of relying only on raw storage keys.
 
-## Files And Storage
+## Seed data
 
-Added:
+`prisma/seed.mjs` seeds only non-sensitive starter configuration:
 
-- `FileAsset`
-- `FileAssetPurpose`
+- product categories,
+- starter product and product package,
+- blog categories,
+- default CRM pipeline stages.
 
-`FileAsset` stores shared metadata for private storage objects: object key, file name, MIME type, size, checksum, purpose, uploader and organization. Domain-specific tables such as `GeneratedDocumentFile` and `BreachAttachment` can link to it while preserving their own domain fields.
+It does not seed real clients, real users, lead data, payments, invoices or confidential documents.
 
-R2/S3 objects should remain private. Future download endpoints should create short-lived signed URLs only after checking role and organization access.
+## Migration notes
 
-## Supabase Notes
+- Target migration name: `phase_2_data_model`.
+- Preferred command: `npx prisma migrate dev --name phase_2_data_model`.
+- If the developer environment cannot connect to the database, do not hand-write a fake migration. Generate it in local/staging once `DATABASE_URL` and `DIRECT_URL` are available.
+- After migration, run `npm run prisma:generate`, `npm run prisma:seed`, `npm run lint`, `npm run typecheck` and `npm run build`.
 
-The Phase 2 schema assumes PostgreSQL through Prisma. For Supabase projects:
+## Known follow-ups
 
-- newly created public-schema tables may not be exposed automatically to the Data API, based on the 2026 Supabase changelog;
-- exposing tables through Data API should be an explicit decision;
-- RLS policies or equivalent database-level access controls should be added before exposing tables to client-side Supabase access;
-- service-role keys must stay server-only and out of `NEXT_PUBLIC_*`.
-
-## Migration Notes
-
-The migration is additive: it adds tables, enum values and optional relation fields. Existing required fields are not removed.
-
-Main migration risks:
-
-- large number of enum and table creations in one migration;
-- future RLS and grants must be planned before exposing tables through Supabase Data API;
-- some indexes are broad Phase 2 defaults and should be revisited after real query plans exist;
-- `DocumentTemplateVersion` duplicates version data that currently lives on `DocumentTemplate`, so service code should choose one write path in later phases.
+- Add reviewed RLS policies and explicit Supabase Data API grants for any table that will be accessed through Supabase client APIs.
+- Add payment-provider webhook event tables if checkout implementation chooses a provider requiring event idempotency storage.
+- Add SQL-level partial indexes after real CRM, shop and platform list queries are implemented and measurable.
+- Decide whether file size should move from `Int` to `BigInt` before storing very large archives.
