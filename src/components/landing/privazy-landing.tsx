@@ -725,7 +725,6 @@ export function PrivazyLanding() {
   const [showFloat, setShowFloat] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
-  const [email, setEmail] = useState("");
   const offerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -932,17 +931,11 @@ export function PrivazyLanding() {
                 </div>
                 <div className="mt-[22px] rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-page)] p-4">
                   <div className="mb-2.5 text-[length:var(--fs-sm)] font-semibold text-[var(--text-strong)]">
-                    Chcesz dostać wynik i rekomendację na e-mail?
+                    Chcesz omówić wynik z prawnikiem?
                   </div>
-                  <div className="flex flex-wrap gap-2.5">
-                    <input
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="twoj@email.pl"
-                      className="h-11 min-w-[200px] flex-1 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3.5 text-[length:var(--fs-body)] text-[var(--text-strong)] outline-none focus-visible:border-[var(--brand)] focus-visible:shadow-[0_0_0_3px_var(--ring)]"
-                    />
-                    <PrimaryButton className="min-h-11 px-5 text-[length:var(--fs-body)] shadow-none">Wyślij wynik</PrimaryButton>
-                  </div>
+                  <p className="text-[length:var(--fs-sm)] leading-relaxed text-[var(--text-muted)]">
+                    Formularz zapisu wyniku jest wyłączony do czasu pełnej ochrony lead capture. Skorzystaj z kontaktu w sekcji poniżej.
+                  </p>
                   <p className="mt-2.5 text-[length:var(--fs-xs)] text-[var(--text-faint)]">
                     Wynik checkera ma charakter informacyjny i pomaga dobrać dalszą ścieżkę. W przypadkach granicznych rekomendujemy konsultację ze specjalistą.
                   </p>

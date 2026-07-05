@@ -6,11 +6,14 @@ import { join, resolve } from "node:path";
 const baseUrl = (process.env.RESPONSIVE_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const routes = [
   "/",
-  "/admin",
   "/blog",
   "/blog/czy-musisz-powolac-inspektora-ochrony-danych",
   "/sklep/polityka-prywatnosci",
 ];
+
+if (process.env.RESPONSIVE_INCLUDE_PRIVATE === "true") {
+  routes.push("/admin");
+}
 const viewports = [
   { name: "mobile-360", width: 360, height: 780 },
   { name: "mobile-390", width: 390, height: 900 },

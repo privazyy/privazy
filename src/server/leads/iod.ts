@@ -51,6 +51,12 @@ export const iodLeadPayloadSchema = z.object({
       campaign: optionalText(120),
     })
     .optional(),
+  security: z
+    .object({
+      turnstileToken: optionalText(4096),
+      website: optionalText(256),
+    })
+    .optional(),
 });
 
 export type IodLeadPayload = z.infer<typeof iodLeadPayloadSchema>;
