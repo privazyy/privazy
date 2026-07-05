@@ -129,4 +129,4 @@ npm run build
 npm run responsive:check
 ```
 
-`responsive:check` testuje `/` i `/admin` na telefonie, tablecie, laptopie, desktopie i duzych ekranach.
+`responsive:check` testuje publiczne trasy na telefonie, tablecie, laptopie, desktopie i duzych ekranach. Prywatne trasy, takie jak `/admin`, wlaczaj tylko w kontrolowanym srodowisku z auth i baza przez `RESPONSIVE_INCLUDE_PRIVATE=true`.

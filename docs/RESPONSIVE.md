@@ -34,4 +34,10 @@ npm run dev
 npm run responsive:check
 ```
 
-Skrypt sprawdza `/` oraz `/admin`, szuka bledow konsoli, overlayow Next.js i niekontrolowanego poziomego overflow. Jesli komponent wymaga poziomego przewijania, oznacz jego wrapper jako kontrolowany scroll.
+Skrypt sprawdza publiczne trasy: `/`, `/blog`, wybrany artykul blogowy oraz publiczna strone produktu. Szuka bledow konsoli, overlayow Next.js i niekontrolowanego poziomego overflow. Jesli komponent wymaga poziomego przewijania, oznacz jego wrapper jako kontrolowany scroll.
+
+Prywatne trasy, takie jak `/admin`, nie sa sprawdzane anonimowo. W kontrolowanym srodowisku z auth i baza mozna wlaczyc je jawnie:
+
+```bash
+RESPONSIVE_INCLUDE_PRIVATE=true npm run responsive:check
+```

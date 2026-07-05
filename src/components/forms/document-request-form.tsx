@@ -13,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 const formSchema = z.object({
   organizationId: z.string().min(1),
   templateId: z.string().min(1),
-  createdById: z.string().min(1),
   organizationName: z.string().min(1),
   contactEmail: z.string().email(),
 });
@@ -28,7 +27,6 @@ export function DocumentRequestForm() {
     defaultValues: {
       organizationId: "",
       templateId: "",
-      createdById: "",
       organizationName: "",
       contactEmail: "",
     },
@@ -45,7 +43,6 @@ export function DocumentRequestForm() {
       body: JSON.stringify({
         organizationId: values.organizationId,
         templateId: values.templateId,
-        createdById: values.createdById,
         data: {
           organizationName: values.organizationName,
           contactEmail: values.contactEmail,
@@ -72,10 +69,6 @@ export function DocumentRequestForm() {
       <div className="grid gap-2">
         <Label htmlFor="templateId">Template ID</Label>
         <Input id="templateId" {...form.register("templateId")} />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="createdById">User ID</Label>
-        <Input id="createdById" {...form.register("createdById")} />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="organizationName">Nazwa organizacji</Label>
