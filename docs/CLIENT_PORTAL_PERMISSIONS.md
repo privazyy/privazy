@@ -48,6 +48,17 @@ Kazdy loader danych portalu filtruje rekordy przez `organizationId`:
 
 Akcje serwerowe wywoluja `assertCanAccessOrganization()` albo `assertCanManageOrganization()` przed zapisem.
 
+Nazwane helpery dla kodu i przyszlych testow:
+
+- `canAccessClientPortal(user)`,
+- `getActiveOrganizationForUser(actor, requestedOrganizationId)`,
+- `assertClientOrganizationAccess(actor, organizationId)`,
+- `assertCanReadClientDocument(actor, documentId)`,
+- `assertCanDownloadClientDocument(actor, documentId, format)`,
+- `assertCanCreateBreach(actor, organizationId)`,
+- `assertCanCreateDataSubjectRequest(actor, organizationId)`,
+- `assertCanManageOrganizationSettings(actor, organizationId)`.
+
 ## Supabase i RLS
 
 Portal ma kontrole aplikacyjna po stronie Next.js, ale to nie zastepuje RLS. Dla produkcyjnej bazy Supabase nalezy:

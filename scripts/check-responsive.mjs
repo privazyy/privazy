@@ -12,6 +12,9 @@ const publicRoutes = [
 ];
 const privateRoutes = [
   "/admin",
+  "/platforma",
+  "/platforma/dokumenty",
+  "/platforma/zamowienia",
   "/sklep",
   "/sklep/pakiety",
   "/koszyk",

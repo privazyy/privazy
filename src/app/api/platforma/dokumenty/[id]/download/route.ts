@@ -2,9 +2,9 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { getPrisma } from "@/server/db/prisma";
-import { createPrivateDownloadUrl } from "@/server/storage/r2";
 import { writePlatformEvent } from "@/server/platform/audit";
-import { assertCanAccessOrganization, requirePlatformActor } from "@/server/platform/permissions";
+import { assertCanDownloadClientDocument, requirePlatformActor } from "@/server/platform/permissions";
+import { createPrivateDownloadUrl } from "@/server/storage/r2";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,34 +26,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Nieobslugiwany format dokumentu." }, { status: 400 });
   }
 
-  const prisma = getPrisma();
-  const document = await prisma.generatedDocument.findUnique({
-    select: {
-      docxFileKey: true,
-      id: true,
-      organizationId: true,
-      pdfFileKey: true,
-      template: { select: { name: true } },
-      type: true,
-      zipFileKey: true,
-    },
-    where: { id },
-  });
-
-  if (!document) {
-    return NextResponse.json({ error: "Nie znaleziono dokumentu." }, { status: 404 });
-  }
-
+  let downloadTarget: Awaited<ReturnType<typeof assertCanDownloadClientDocument>>;
   try {
-    await assertCanAccessOrganization(document.organizationId, actor);
+    downloadTarget = await assertCanDownloadClientDocument(actor, id, format);
   } catch {
     return NextResponse.json({ error: "Nie znaleziono dokumentu." }, { status: 404 });
   }
 
-  const key = fileKeyForFormat(document, format);
-  if (!key) {
-    return NextResponse.json({ error: "Plik w tym formacie nie jest dostepny." }, { status: 404 });
-  }
+  const { document, fileKey } = downloadTarget;
+  const prisma = getPrisma();
 
   await prisma.$transaction(async (tx) => {
     const download = await tx.documentDownload.create({
@@ -87,7 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   });
 
   try {
-    const signedUrl = await createPrivateDownloadUrl(key, 120);
+    const signedUrl = await createPrivateDownloadUrl(fileKey, 120);
     return NextResponse.redirect(signedUrl, { status: 302 });
   } catch {
     return NextResponse.json({ error: "Magazyn plikow nie jest skonfigurowany." }, { status: 503 });
@@ -105,17 +86,4 @@ async function getDownloadActor() {
   } catch {
     return null;
   }
-}
-
-function fileKeyForFormat(
-  document: {
-    docxFileKey: string;
-    pdfFileKey: string | null;
-    zipFileKey: string | null;
-  },
-  format: DownloadFormat,
-) {
-  if (format === "docx") return document.docxFileKey;
-  if (format === "pdf") return document.pdfFileKey;
-  return document.zipFileKey;
 }

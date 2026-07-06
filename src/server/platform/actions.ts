@@ -13,7 +13,9 @@ import { getPrisma } from "@/server/db/prisma";
 import { writePlatformEvent } from "@/server/platform/audit";
 import {
   assertCanAccessOrganization,
-  assertCanManageOrganization,
+  assertCanCreateBreach,
+  assertCanCreateDataSubjectRequest,
+  assertCanManageOrganizationSettings,
   requirePlatformActor,
 } from "@/server/platform/permissions";
 
@@ -167,7 +169,7 @@ export async function submitDocumentInputFormAction(formData: FormData) {
 export async function createBreachIncidentAction(formData: FormData) {
   const actor = await requirePlatformActor();
   const input = breachSchema.parse(formObject(formData));
-  await assertCanAccessOrganization(input.organizationId, actor);
+  await assertCanCreateBreach(actor, input.organizationId);
   const prisma = getPrisma();
 
   const incident = await prisma.$transaction(async (tx) => {
@@ -236,7 +238,7 @@ export async function createBreachIncidentAction(formData: FormData) {
 export async function createDataSubjectRequestAction(formData: FormData) {
   const actor = await requirePlatformActor();
   const input = requestSchema.parse(formObject(formData));
-  await assertCanAccessOrganization(input.organizationId, actor);
+  await assertCanCreateDataSubjectRequest(actor, input.organizationId);
   const prisma = getPrisma();
   const dueAt = addDays(input.receivedAt, 30);
 
@@ -408,7 +410,7 @@ export async function completeClientTaskAction(formData: FormData) {
 export async function updateOrganizationSettingsAction(formData: FormData) {
   const actor = await requirePlatformActor();
   const input = organizationSettingsSchema.parse(formObject(formData));
-  await assertCanManageOrganization(input.organizationId, actor);
+  await assertCanManageOrganizationSettings(actor, input.organizationId);
   const prisma = getPrisma();
 
   const organization = await prisma.$transaction(async (tx) => {

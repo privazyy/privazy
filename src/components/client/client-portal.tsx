@@ -10,6 +10,7 @@ import {
   Inbox,
   LayoutDashboard,
   ListTodo,
+  LogOut,
   MessageSquareText,
   Plus,
   Settings,
@@ -121,6 +122,12 @@ export function ClientPortalShell({
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Badge tone={context.activeAccess?.isInternal ? "brand" : "neutral"}>{context.activeAccess?.role ?? context.actor.role}</Badge>
               <span className="min-w-0 truncate text-sm font-medium text-[var(--text-body)]">{context.actor.name ?? context.actor.email}</span>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/api/auth/signout" prefetch={false}>
+                  <LogOut aria-hidden="true" />
+                  Wyloguj
+                </Link>
+              </Button>
             </div>
             {activeOrganization && (
               <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--text-muted)]">
@@ -158,6 +165,18 @@ export function ClientPortalShell({
           </nav>
         </div>
       </header>
+
+      {context.activeAccess?.isInternal && (
+        <section className="border-b border-[var(--brand-border)] bg-[var(--brand-soft)]">
+          <div className="mx-auto flex w-full max-w-[var(--container-wide)] items-start gap-3 px-[var(--gutter)] py-3 text-sm leading-6 text-[var(--brand-ink)]">
+            <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <p>
+              <strong>Podglad jako pracownik.</strong> Widzisz dane organizacji w trybie wewnetrznym PRIVAZY. Ten widok nie nadaje klientowi
+              dostepu do CRM ani danych innych organizacji.
+            </p>
+          </div>
+        </section>
+      )}
 
       {context.organizations.length > 1 && (
         <section className="border-b border-[var(--border-subtle)] bg-[var(--surface-card)]">

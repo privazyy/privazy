@@ -12,6 +12,7 @@ Phase 8 dodaje realny portal klienta pod `/platforma`. Portal jest aplikacyjna w
 - `/platforma/naruszenia` - rejestr naruszen ochrony danych.
 - `/platforma/zadania-osob` - rejestr zadan osob, ktorych dane dotycza.
 - `/platforma/wiadomosci` - watki klienta z zespolem PRIVAZY.
+- `/platforma/wiadomosci/[id]` - szczegoly watku i odpowiedz klienta.
 - `/platforma/zadania` - zadania CRM widoczne dla organizacji.
 - `/platforma/ustawienia` - dane organizacji i profile klienta.
 
@@ -47,6 +48,8 @@ Endpoint:
 
 Brak konfiguracji R2 zwraca `503` bez ujawniania klucza pliku.
 
+Szczegoly polityki sa w [CLIENT_PORTAL_SECURITY.md](CLIENT_PORTAL_SECURITY.md).
+
 ## Formularze i zdarzenia
 
 Akcje serwerowe sa walidowane przez Zod. Udane akcje zapisuja audit log i os zdarzen klienta:
@@ -58,6 +61,13 @@ Akcje serwerowe sa walidowane przez Zod. Udane akcje zapisuja audit log i os zda
 - wykonanie zadania - `client.task_completed`,
 - zmiana danych organizacji - `client.organization_updated`,
 - pobranie dokumentu - `client.document_downloaded`.
+
+## Dokumenty powiazane
+
+- [CLIENT_PORTAL_ROUTES.md](CLIENT_PORTAL_ROUTES.md) - komplet tras i alias `/client`.
+- [CLIENT_PORTAL_PERMISSIONS.md](CLIENT_PORTAL_PERMISSIONS.md) - role i izolacja organizacji.
+- [CLIENT_PORTAL_SECURITY.md](CLIENT_PORTAL_SECURITY.md) - download, RLS/Data API i security gaps.
+- [CLIENT_MESSAGES.md](CLIENT_MESSAGES.md) - watki klienta i separacja od internal notes.
 
 ## Poza zakresem Phase 8
 

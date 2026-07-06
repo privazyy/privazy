@@ -559,6 +559,19 @@ export async function getClientMessages(organizationId: string) {
   });
 }
 
+export async function getClientMessageThread(organizationId: string, id: string) {
+  return getPrisma().clientMessageThread.findFirst({
+    include: {
+      createdBy: { select: { email: true, name: true } },
+      messages: {
+        include: { senderUser: { select: { email: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+    where: { id, organizationId },
+  });
+}
+
 export async function getClientTasks(organizationId: string) {
   return getPrisma().crmTask.findMany({
     include: { owner: { select: { email: true, name: true } } },

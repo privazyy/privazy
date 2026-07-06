@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import {
   ClientEmptyState,
@@ -9,6 +10,7 @@ import {
   ClientPortalNoOrganization,
   ClientPortalShell,
   ClientStatusBadge,
+  withOrg,
 } from "@/components/client/client-portal";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -82,7 +84,10 @@ export default async function ClientMessagesPage({ searchParams }: { searchParam
                   <Field htmlFor={`reply-${thread.id}`} label="Odpowiedz">
                     <Textarea id={`reply-${thread.id}`} name="body" placeholder="Dopisz wiadomosc do watku" required />
                   </Field>
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={withOrg(`/platforma/wiadomosci/${thread.id}`, organizationId)}>Szczegoly</Link>
+                    </Button>
                     <Button size="sm" type="submit">Wyslij odpowiedz</Button>
                   </div>
                 </form>
