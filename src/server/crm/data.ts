@@ -46,9 +46,10 @@ const jobStatusLabels: Record<DocumentGenerationStatus, string> = {
 
 const generatedStatusLabels: Record<GeneratedDocumentStatus, string> = {
   ARCHIVED: "Archiwum",
-  DELIVERED: "Dostarczony",
-  DRAFT: "Szkic",
-  GENERATED: "Wygenerowany",
+  FAILED: "Blad",
+  PROCESSING: "W trakcie",
+  READY: "Gotowy",
+  REVIEW_REQUIRED: "Wymaga review",
 };
 
 export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
@@ -98,6 +99,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         generatedDocument: true,
         organization: true,
         template: true,
+        orderItem: true,
       },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -105,7 +107,9 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     prisma.generatedDocument.findMany({
       include: {
         createdBy: true,
+        files: true,
         organization: true,
+        orderItem: true,
         template: true,
       },
       orderBy: { createdAt: "desc" },
@@ -184,10 +188,10 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         `v${document.templateVersion}`,
         document.createdBy.name ?? document.createdBy.email,
         formatDate(document.createdAt),
-        document.pdfFileKey ? "PDF" : "DOCX",
+        document.files.map((file) => file.type).join(", ") || (document.docxFileKey ? "DOCX" : "-"),
         "",
       ],
-      primary: document.template.name,
+      primary: document.orderItem?.productName ?? document.template?.name ?? document.type,
       secondary: document.id,
       status: { label: status, tone: statusTone(status) },
     };
@@ -199,7 +203,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     return {
       cells: [
         job.organization.name,
-        job.template.name,
+        job.orderItem?.productName ?? job.template?.name ?? "Manualny job dokumentu",
         status,
         formatDate(job.createdAt),
         job.completedAt ? formatDate(job.completedAt) : "-",
@@ -207,7 +211,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       primary: job.id,
-      secondary: job.template.type,
+      secondary: job.template?.type ?? job.orderItem?.documentType ?? "Document",
       status: { label: status, tone: statusTone(status) },
       tag: job.errorMessage ? { label: "Wymaga uwagi", tone: "danger" } : undefined,
     };
@@ -228,7 +232,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       primary: template.name,
-      secondary: template.fileKey,
+      secondary: template.fileKey ?? undefined,
       status: { label: status, tone: statusTone(status) },
     };
   });

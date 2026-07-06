@@ -39,3 +39,25 @@ export async function sendDocumentsReadyEmail(input: {
     `,
   });
 }
+
+export async function logDocumentNotification(input: {
+  event: "document.input_required" | "document.generating" | "document.ready" | "document.failed" | "document.review_required";
+  organizationId: string;
+  orderItemId?: string;
+  generatedDocumentId?: string;
+  userId?: string;
+}) {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM) {
+    console.info("[documents:mail-log]", {
+      event: input.event,
+      organizationId: input.organizationId,
+      orderItemId: input.orderItemId,
+      generatedDocumentId: input.generatedDocumentId,
+      userId: input.userId,
+    });
+
+    return { delivered: false, mode: "development-log" as const };
+  }
+
+  return { delivered: false, mode: "resend-not-wired-for-phase-6r" as const };
+}

@@ -1,14 +1,12 @@
 import { z } from "zod";
 
-export const documentGenerationInputSchema = z.object({
-  organizationId: z.string().min(1),
-  templateId: z.string().min(1),
-  createdById: z.string().min(1),
-  data: z.record(z.string(), z.unknown()),
+export const documentInputApiSchema = z.object({
+  orderItemId: z.string().min(1),
+  data: z.unknown(),
 });
 
-export type DocumentGenerationInput = z.infer<typeof documentGenerationInputSchema>;
-
-export const documentGenerateApiSchema = documentGenerationInputSchema.extend({
-  idempotencyKey: z.string().optional(),
+export const documentRetryApiSchema = z.object({
+  reason: z.string().max(500).optional(),
 });
+
+export type DocumentInputApiPayload = z.infer<typeof documentInputApiSchema>;

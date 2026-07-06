@@ -37,6 +37,11 @@ enum DocumentTemplateStatus {
   ARCHIVED
 }
 
+enum DocumentTemplateSource {
+  R2
+  LOCAL_DEVELOPMENT_SAMPLE
+}
+
 enum DocumentGenerationStatus {
   PENDING
   PROCESSING
@@ -44,11 +49,38 @@ enum DocumentGenerationStatus {
   FAILED
 }
 
-enum GeneratedDocumentStatus {
+enum DocumentInputStatus {
   DRAFT
-  GENERATED
-  DELIVERED
+  SUBMITTED
+  GENERATING
+  READY
+  FAILED
+  REVIEW_REQUIRED
+  REVIEWED
   ARCHIVED
+}
+
+enum GeneratedDocumentStatus {
+  PROCESSING
+  READY
+  FAILED
+  REVIEW_REQUIRED
+  ARCHIVED
+}
+
+enum GeneratedFileType {
+  DOCX
+  PDF
+  HTML
+  ZIP
+}
+
+enum DocumentReviewStatus {
+  NOT_REQUIRED
+  REQUIRED
+  IN_REVIEW
+  APPROVED
+  REJECTED
 }
 
 enum FormSubmissionStatus {
@@ -57,6 +89,54 @@ enum FormSubmissionStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum ProductKind {
+  DOCUMENT
+  SERVICE
+  SUBSCRIPTION
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  MANUALLY_APPROVED
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderItemStatus {
+  INPUT_REQUIRED
+  DRAFT
+  SUBMITTED
+  GENERATING
+  READY
+  FAILED
+  REVIEW_REQUIRED
+  REVIEWED
+  ARCHIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
 }
 
 model User {
@@ -75,6 +155,10 @@ model User {
   generatedDocuments GeneratedDocument[]
   auditLogs AuditLog[]
   formSubmissions FormSubmission[]
+  orders Order[]
+  documentInputs DocumentInput[]
+  documentDownloads DocumentDownload[]
+  documentReviews DocumentReview[] @relation("DocumentReviewer")
 }
 
 model Organization {
@@ -98,6 +182,12 @@ model Organization {
   generatedDocuments GeneratedDocument[]
   auditLogs AuditLog[]
   formSubmissions FormSubmission[]
+  products Product[]
+  orders Order[]
+  orderItems OrderItem[]
+  documentInputs DocumentInput[]
+  documentDownloads DocumentDownload[]
+  documentReviews DocumentReview[]
 }
 
 model ClientProfile {
@@ -120,7 +210,10 @@ model DocumentTemplate {
   name            String
   version         Int
   status          DocumentTemplateStatus @default(DRAFT)
-  fileKey         String
+  fileKey         String?
+  source          DocumentTemplateSource @default(R2)
+  isSample        Boolean @default(false)
+  requiresReview  Boolean @default(false)
   variablesSchema Json
   createdById     String
   approvedById    String?
@@ -131,43 +224,192 @@ model DocumentTemplate {
   approvedBy User? @relation("TemplateApprovedBy", fields: [approvedById], references: [id])
   generationJobs DocumentGenerationJob[]
   generatedDocuments GeneratedDocument[]
+  products Product[]
+  documentInputs DocumentInput[]
 
   @@unique([type, version])
   @@index([status])
 }
 
+model Product {
+  id             String @id @default(cuid())
+  organizationId String?
+  name           String
+  slug           String @unique
+  kind           ProductKind @default(DOCUMENT)
+  status         ProductStatus @default(DRAFT)
+  documentType   DocumentType?
+  templateId     String?
+  requiresReview Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  template DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  orderItems OrderItem[]
+
+  @@index([organizationId])
+  @@index([kind, status])
+  @@index([documentType])
+}
+
+model Order {
+  id             String @id @default(cuid())
+  organizationId String
+  createdById    String
+  status         OrderStatus @default(PENDING_PAYMENT)
+  currency       String @default("PLN")
+  totalNet       Int @default(0)
+  totalGross     Int @default(0)
+  paidAt         DateTime?
+  manuallyApprovedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id])
+  items OrderItem[]
+  payments Payment[]
+  invoices Invoice[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([status])
+}
+
+model OrderItem {
+  id             String @id @default(cuid())
+  orderId        String
+  organizationId String
+  productId      String?
+  productName    String
+  kind           ProductKind @default(DOCUMENT)
+  documentType   DocumentType?
+  status         OrderItemStatus @default(INPUT_REQUIRED)
+  quantity       Int @default(1)
+  unitNet        Int @default(0)
+  unitGross      Int @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  documentInputs DocumentInput[]
+  generationJobs DocumentGenerationJob[]
+  generatedDocuments GeneratedDocument[]
+
+  @@index([orderId])
+  @@index([organizationId])
+  @@index([productId])
+  @@index([status])
+  @@index([documentType])
+}
+
+model Payment {
+  id        String @id @default(cuid())
+  orderId   String
+  provider  String @default("sandbox")
+  status    PaymentStatus @default(PENDING)
+  amount    Int
+  currency  String @default("PLN")
+  reference String?
+  paidAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model Invoice {
+  id        String @id @default(cuid())
+  orderId   String
+  status    InvoiceStatus @default(DRAFT)
+  number    String?
+  fileKey   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model DocumentInput {
+  id             String @id @default(cuid())
+  organizationId String
+  orderItemId    String
+  templateId      String?
+  createdById     String
+  status          DocumentInputStatus @default(DRAFT)
+  documentType    DocumentType @default(PRIVACY_POLICY)
+  data            Json
+  version         Int @default(1)
+  submittedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  template DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy User @relation(fields: [createdById], references: [id])
+  generationJobs DocumentGenerationJob[]
+  generatedDocuments GeneratedDocument[]
+
+  @@unique([orderItemId, version])
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([status])
+  @@index([documentType])
+}
+
 model DocumentGenerationJob {
   id             String @id @default(cuid())
   organizationId String
-  templateId     String
+  templateId     String?
+  documentInputId String?
+  orderItemId    String?
   status         DocumentGenerationStatus @default(PENDING)
   inputSnapshot  Json
   errorMessage   String?
+  safeErrorMessage String?
+  attempt        Int @default(1)
   createdById    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   completedAt    DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id])
-  template DocumentTemplate @relation(fields: [templateId], references: [id])
+  template DocumentTemplate? @relation(fields: [templateId], references: [id])
+  documentInput DocumentInput? @relation(fields: [documentInputId], references: [id], onDelete: SetNull)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
   createdBy User @relation(fields: [createdById], references: [id])
   generatedDocument GeneratedDocument?
 
   @@index([organizationId])
   @@index([templateId])
+  @@index([documentInputId])
+  @@index([orderItemId])
   @@index([status])
 }
 
 model GeneratedDocument {
   id              String @id @default(cuid())
   organizationId  String
-  templateId      String
+  orderItemId     String?
+  documentInputId String?
+  templateId      String?
   templateVersion Int
-  generationJobId String @unique
+  generationJobId String? @unique
   type            DocumentType
-  status          GeneratedDocumentStatus @default(DRAFT)
+  status          GeneratedDocumentStatus @default(PROCESSING)
+  reviewStatus    DocumentReviewStatus @default(NOT_REQUIRED)
   inputSnapshot   Json
-  docxFileKey     String
+  docxFileKey     String?
   pdfFileKey      String?
   zipFileKey      String?
   createdById     String
@@ -175,12 +417,81 @@ model GeneratedDocument {
   updatedAt       DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
-  template DocumentTemplate @relation(fields: [templateId], references: [id])
-  generationJob DocumentGenerationJob @relation(fields: [generationJobId], references: [id])
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  documentInput DocumentInput? @relation(fields: [documentInputId], references: [id], onDelete: SetNull)
+  template DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  generationJob DocumentGenerationJob? @relation(fields: [generationJobId], references: [id])
   createdBy User @relation(fields: [createdById], references: [id])
+  files GeneratedDocumentFile[]
+  downloads DocumentDownload[]
+  reviews DocumentReview[]
 
   @@index([organizationId])
+  @@index([orderItemId])
+  @@index([documentInputId])
   @@index([templateId])
+  @@index([status])
+}
+
+model GeneratedDocumentFile {
+  id                  String @id @default(cuid())
+  generatedDocumentId String
+  organizationId      String
+  type                GeneratedFileType
+  fileName            String
+  fileKey             String
+  contentType         String
+  byteSize            Int?
+  checksum            String?
+  createdAt           DateTime @default(now())
+
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
+  downloads DocumentDownload[]
+
+  @@unique([generatedDocumentId, type])
+  @@index([organizationId])
+  @@index([type])
+}
+
+model DocumentDownload {
+  id                  String @id @default(cuid())
+  userId              String
+  organizationId      String
+  generatedDocumentId String
+  fileId              String
+  downloadedAt        DateTime @default(now())
+  ipAddress           String?
+  userAgent           String?
+
+  user User @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
+  file GeneratedDocumentFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([generatedDocumentId])
+  @@index([fileId])
+  @@index([downloadedAt])
+}
+
+model DocumentReview {
+  id                  String @id @default(cuid())
+  organizationId      String
+  generatedDocumentId String
+  status              DocumentReviewStatus @default(REQUIRED)
+  reviewerId          String?
+  reviewComment       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("DocumentReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([generatedDocumentId])
+  @@index([reviewerId])
   @@index([status])
 }
 

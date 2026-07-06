@@ -1,15 +1,19 @@
-import { DocumentRequestForm } from "@/components/forms/document-request-form";
+import Link from "next/link";
+import { Card } from "@/components/ui/card";
 
 export default function DocumentsPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold">Generowanie dokumentu</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Przykładowy flow: walidacja formularza, API route, Inngest event i job generowania DOCX.
+      <Card padding="lg" variant="flat">
+        <h1 className="text-2xl font-semibold">Generowanie dokumentow</h1>
+        <p className="mt-2 text-sm text-[var(--text-muted)]">
+          Bezpieczny flow dokumentow po zakupie jest dostepny w portalu klienta. Stary endpoint generowania zostal wylaczony,
+          bo nie moze przyjmowac organizationId, templateId ani createdById bez weryfikacji sesji.
         </p>
-      </div>
-      <DocumentRequestForm />
+        <Link className="mt-5 inline-flex text-sm font-semibold text-[var(--text-link)]" href="/platforma/dokumenty">
+          Przejdz do dokumentow
+        </Link>
+      </Card>
     </main>
   );
 }
