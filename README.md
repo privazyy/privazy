@@ -46,6 +46,15 @@ Never commit `.env`, `.env.local`, Supabase keys, Resend keys, Cloudflare R2 key
 Follow [docs/SETUP.md](docs/SETUP.md) to connect each service. See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for the environment variable reference.
 Use [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) as the UI constitution and [docs/RESPONSIVE.md](docs/RESPONSIVE.md) as the viewport formula for landing, CRM, and every new component.
 
+## Release Operations
+
+Production launch is controlled by the release documentation and must not run while the launch decision is blocked:
+
+- [Release runbook](docs/RELEASE_RUNBOOK.md)
+- [Controlled launch runbook](docs/CONTROLLED_LAUNCH_RUNBOOK.md)
+- [Production readiness](docs/PRODUCTION_READINESS.md)
+- [Support operations](docs/SUPPORT_OPERATIONS.md)
+
 ## Recommended Environments
 
 ```txt
