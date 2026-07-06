@@ -99,17 +99,20 @@ function ShellButton({
 }
 
 function Sidebar({
+  allowedRoutes,
   collapsed,
   onCollapse,
   onRoute,
   route,
 }: {
+  allowedRoutes: CrmRoute[];
   collapsed: boolean;
   onCollapse: () => void;
   onRoute: (route: CrmRoute) => void;
   route: CrmRoute;
 }) {
   const activeRoute = routeAliases[route] ?? route;
+  const allowed = new Set(allowedRoutes);
 
   return (
     <aside
@@ -135,7 +138,7 @@ function Sidebar({
               <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{group.label}</div>
             )}
             <div className="space-y-1">
-              {group.items.map((item) => (
+              {group.items.filter((item) => allowed.has(item.route)).map((item) => (
                 <div className="relative" key={item.route}>
                   <ShellButton
                     active={activeRoute === item.route}
@@ -146,11 +149,6 @@ function Sidebar({
                   >
                     {item.label}
                   </ShellButton>
-                  {item.badge && !collapsed && (
-                    <span className="pointer-events-none absolute right-2 top-2 rounded-[var(--radius-pill)] bg-[var(--brand)] px-2 py-0.5 text-[10px] font-bold text-white">
-                      {item.badge}
-                    </span>
-                  )}
                 </div>
               ))}
             </div>
@@ -198,6 +196,7 @@ function KpiGrid({ items, onRoute }: { items: Kpi[]; onRoute?: (route: CrmRoute)
 
 function ModuleHeader({
   action,
+  canMutate = true,
   icon,
   onBack,
   onPrimary,
@@ -205,6 +204,7 @@ function ModuleHeader({
   title,
 }: {
   action?: string;
+  canMutate?: boolean;
   icon: string;
   onBack?: () => void;
   onPrimary?: () => void;
@@ -230,7 +230,7 @@ function ModuleHeader({
           </div>
         </div>
       </div>
-      {action && (
+      {action && canMutate && (
         <Button type="button" onClick={onPrimary}>
           <CrmIcon name="Plus" />
           {action}
@@ -355,10 +355,18 @@ function DataTable({
   );
 }
 
-function GenericModuleView({ module, onRoute }: { module: GenericModule; onRoute: (route: CrmRoute, row?: TableRow) => void }) {
+function GenericModuleView({
+  canMutate,
+  module,
+  onRoute,
+}: {
+  canMutate: boolean;
+  module: GenericModule;
+  onRoute: (route: CrmRoute, row?: TableRow) => void;
+}) {
   return (
     <div className="space-y-5">
-      <ModuleHeader action={module.action} icon={module.icon} subtitle={module.subtitle} title={module.title} />
+      <ModuleHeader action={module.action} canMutate={canMutate} icon={module.icon} subtitle={module.subtitle} title={module.title} />
       <KpiGrid items={module.kpis} onRoute={onRoute} />
       <Card padding="md" variant="flat">
         <div className="space-y-4">
@@ -371,12 +379,18 @@ function GenericModuleView({ module, onRoute }: { module: GenericModule; onRoute
 }
 
 function Dashboard({ data, onRoute }: { data: CrmDatabaseData["dashboard"]; onRoute: (route: CrmRoute) => void }) {
+  const generatedDate = new Intl.DateTimeFormat("pl-PL", {
+    day: "2-digit",
+    month: "long",
+    weekday: "long",
+  }).format(new Date());
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm text-[var(--text-muted)]">Poniedziałek, 29 czerwca - Centrum operacyjne</p>
-          <h1 className="mt-1 text-2xl font-extrabold text-[var(--text-strong)] sm:text-[26px]">Dzień dobry, Anna</h1>
+          <p className="text-sm text-[var(--text-muted)]">{generatedDate} - Centrum operacyjne</p>
+          <h1 className="mt-1 text-2xl font-extrabold text-[var(--text-strong)] sm:text-[26px]">Dashboard CRM</h1>
         </div>
         <FilterBar labels={["Ogólny", "Sprzedaż", "IOD", "Dokumenty", "Księgowość"]} />
       </div>
@@ -387,7 +401,7 @@ function Dashboard({ data, onRoute }: { data: CrmDatabaseData["dashboard"]; onRo
         <Card padding="md" variant="flat">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-[var(--text-strong)]">Alerty operacyjne</h2>
-            <Badge tone="warning">5 pilnych</Badge>
+            <Badge tone={data.alerts.length > 0 ? "warning" : "neutral"}>{data.alerts.length} alertow</Badge>
           </div>
           <div className="space-y-3">
             {data.alerts.length === 0 ? (
@@ -667,6 +681,7 @@ function RecordDetail({
 
 function SimpleListModule({
   action,
+  canMutate,
   columns,
   emptyMessage,
   icon,
@@ -678,6 +693,7 @@ function SimpleListModule({
   title,
 }: {
   action: string;
+  canMutate: boolean;
   columns: string[];
   emptyMessage?: string;
   icon: string;
@@ -690,7 +706,7 @@ function SimpleListModule({
 }) {
   return (
     <div className="space-y-5">
-      <ModuleHeader action={action} icon={icon} onPrimary={onAction} subtitle={subtitle} title={title} />
+      <ModuleHeader action={action} canMutate={canMutate} icon={icon} onPrimary={onAction} subtitle={subtitle} title={title} />
       {kpis && <KpiGrid items={kpis} />}
       <Card padding="md" variant="flat">
         <div className="space-y-4">
@@ -706,6 +722,7 @@ function PlatformModule({ data, onPreview }: { data: CrmListModule; onPreview: (
   return (
     <SimpleListModule
       action={data.action}
+      canMutate={false}
       columns={data.columns}
       emptyMessage={data.emptyMessage}
       icon={data.icon}
@@ -731,6 +748,8 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
   const [selectedRow, setSelectedRow] = useState<TableRow | null>(null);
 
   const setRouteAndClose = (nextRoute: CrmRoute, row?: TableRow) => {
+    const accessRoute = routeAliases[nextRoute] ?? nextRoute;
+    if (!data.permissions.allowedRoutes.includes(accessRoute)) return;
     setRoute(nextRoute);
     setSelectedRow(row ?? null);
     setMobileOpen(false);
@@ -777,6 +796,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
       return (
         <SimpleListModule
           action={list.action}
+          canMutate={data.permissions.canMutate}
           columns={list.columns}
           emptyMessage={list.emptyMessage}
           icon={list.icon}
@@ -790,7 +810,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
     }
 
     const crmModule = data.modules[route];
-    if (crmModule) return <GenericModuleView module={crmModule} onRoute={setRouteAndClose} />;
+    if (crmModule) return <GenericModuleView canMutate={data.permissions.canMutate} module={crmModule} onRoute={setRouteAndClose} />;
 
     return <Dashboard data={data.dashboard} onRoute={setRouteAndClose} />;
   })();
@@ -799,14 +819,14 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
     <div className="min-h-screen bg-[var(--surface-page)] text-[var(--text-body)]">
       <div className="flex min-h-screen w-full overflow-x-clip">
         <div className="hidden lg:block">
-          <Sidebar collapsed={collapsed} onCollapse={() => setCollapsed((value) => !value)} onRoute={setRouteAndClose} route={route} />
+          <Sidebar allowedRoutes={data.permissions.allowedRoutes} collapsed={collapsed} onCollapse={() => setCollapsed((value) => !value)} onRoute={setRouteAndClose} route={route} />
         </div>
 
         {mobileOpen && (
           <div className="fixed inset-0 z-50 lg:hidden">
             <button className="absolute inset-0 bg-[var(--gray-900)]/40" type="button" aria-label="Zamknij menu" onClick={() => setMobileOpen(false)} />
             <div className="relative h-full w-[min(86vw,320px)]">
-              <Sidebar collapsed={false} onCollapse={() => setMobileOpen(false)} onRoute={setRouteAndClose} route={route} />
+              <Sidebar allowedRoutes={data.permissions.allowedRoutes} collapsed={false} onCollapse={() => setMobileOpen(false)} onRoute={setRouteAndClose} route={route} />
             </div>
           </div>
         )}
@@ -857,12 +877,13 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
                   </Card>
                 )}
               </div>
-              <div className="relative">
-                <Button type="button" onClick={() => { setAddOpen((value) => !value); setNotifOpen(false); }}>
-                  <CrmIcon name="Plus" />
-                  <span className="hidden sm:inline">Dodaj</span>
-                </Button>
-                {addOpen && (
+              {data.permissions.canMutate && (
+                <div className="relative">
+                  <Button type="button" onClick={() => { setAddOpen((value) => !value); setNotifOpen(false); }}>
+                    <CrmIcon name="Plus" />
+                    <span className="hidden sm:inline">Dodaj</span>
+                  </Button>
+                  {addOpen && (
                   <Card className="absolute right-0 top-12 z-40 w-[min(92vw,280px)]" padding="sm" variant="raised">
                     {[
                       ["Dodaj klienta", "clients"],
@@ -878,13 +899,14 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
                       </button>
                     ))}
                   </Card>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
               <div className="hidden items-center gap-2 rounded-[var(--radius-md)] p-1 hover:bg-[var(--surface-sunken)] md:flex">
-                <span className="grid size-8 place-items-center rounded-full bg-[var(--brand)] text-xs font-bold text-white">AK</span>
+                <span className="grid size-8 place-items-center rounded-full bg-[var(--brand)] text-xs font-bold text-white">{data.actor.initials}</span>
                 <div className="leading-tight">
-                  <div className="text-sm font-semibold text-[var(--text-strong)]">Anna Kowalczyk</div>
-                  <div className="text-xs text-[var(--text-muted)]">Operations Manager</div>
+                  <div className="text-sm font-semibold text-[var(--text-strong)]">{data.actor.name}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{data.actor.role}</div>
                 </div>
                 <CrmIcon className="size-4 text-[var(--text-faint)]" name="ChevronDown" />
               </div>
@@ -897,7 +919,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
               <span className="min-w-0 flex-1">
                 <strong>{data.dashboard.alerts[0].title}</strong> {data.dashboard.alerts[0].subtitle}
               </span>
-              <button className="hidden font-semibold underline sm:inline" type="button" onClick={() => setRouteAndClose("breaches")}>
+              <button className="hidden font-semibold underline sm:inline" type="button" onClick={() => setRouteAndClose(data.dashboard.alerts[0].route)}>
                 Otwórz
               </button>
               <IconButton label="Zamknij alert" size="sm" variant="ghost" onClick={() => setShowSla(false)}>
