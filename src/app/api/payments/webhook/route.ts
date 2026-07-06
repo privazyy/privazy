@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { getPaymentProvider } from "@/server/payments";
+import { handlePaymentWebhook } from "@/server/payments/webhook-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const result = await getPaymentProvider().handleWebhook(request);
+    const result = await handlePaymentWebhook(request);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Payment webhook failed", error);

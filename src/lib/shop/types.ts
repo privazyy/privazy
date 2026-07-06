@@ -64,4 +64,5 @@ export type PublicOrderView = {
   subtotalNetCents: number;
   totalGrossCents: number;
   vatCents: number;
+  wantsInvoice: boolean;
 };

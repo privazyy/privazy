@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getPrisma } from "@/server/db/prisma";
-import { getPaymentProvider } from "@/server/payments";
+import { createPaymentForPublicOrder } from "@/server/payments/payment-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,23 +25,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Brak danych zamowienia.", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const order = await getPrisma().order.findFirst({
-    where: {
-      orderNumber: parsed.data.orderNumber,
-      publicAccessToken: parsed.data.token,
-    },
-  });
-
-  if (!order) return NextResponse.json({ error: "Zamowienie nie istnieje." }, { status: 404 });
-  if (order.status === "PAID") return NextResponse.json({ error: "Zamowienie jest juz oplacone." }, { status: 409 });
-
-  const payment = await getPaymentProvider().createPayment({
-    amountGrossCents: order.totalGrossCents,
-    currency: order.currency,
-    orderId: order.id,
-    orderNumber: order.orderNumber,
-    publicAccessToken: order.publicAccessToken,
-  });
-
-  return NextResponse.json(payment, { status: 201 });
+  try {
+    const payment = await createPaymentForPublicOrder(parsed.data);
+    return NextResponse.json(payment, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Nie udalo sie utworzyc platnosci.";
+    const status = message.includes("nie istnieje") ? 404 : message.includes("juz oplacone") ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
 }

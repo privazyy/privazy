@@ -28,37 +28,57 @@ export class MockInvoiceProvider implements InvoiceProviderClient {
     }
 
     const invoiceNumber = `FV-MOCK/${new Date().getFullYear()}/${order.orderNumber}`;
-    const invoice = await prisma.invoice.create({
-      data: {
-        buyerSnapshot: {
-          addressLine1: order.billingProfile.addressLine1,
-          city: order.billingProfile.city,
-          companyName: order.billingProfile.companyName,
-          country: order.billingProfile.country,
-          customerType: order.billingProfile.customerType,
-          email: order.billingProfile.email,
-          name: order.billingProfile.name,
-          nip: order.billingProfile.nip,
-          postalCode: order.billingProfile.postalCode,
+    const invoice = await prisma.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          buyerSnapshot: {
+            addressLine1: order.billingProfile.addressLine1,
+            city: order.billingProfile.city,
+            companyName: order.billingProfile.companyName,
+            country: order.billingProfile.country,
+            customerType: order.billingProfile.customerType,
+            email: order.billingProfile.email,
+            name: order.billingProfile.name,
+            nip: order.billingProfile.nip,
+            postalCode: order.billingProfile.postalCode,
+            wantsInvoice: order.wantsInvoice,
+          },
+          currency: order.currency,
+          invoiceNumber,
+          issuedAt: new Date(),
+          itemsSnapshot: order.items.map((item) => ({
+            gross: item.totalGrossCents,
+            name: item.productName,
+            net: item.subtotalNetCents,
+            quantity: item.quantity,
+            vat: item.vatCents,
+          })),
+          orderId: order.id,
+          organizationId: order.organizationId,
+          provider: "MOCK",
+          status: "ISSUED",
+          subtotalNetCents: order.subtotalNetCents,
+          totalGrossCents: order.totalGrossCents,
+          vatCents: order.vatCents,
         },
-        currency: order.currency,
-        invoiceNumber,
-        issuedAt: new Date(),
-        itemsSnapshot: order.items.map((item) => ({
-          gross: item.totalGrossCents,
-          name: item.productName,
-          net: item.subtotalNetCents,
-          quantity: item.quantity,
-          vat: item.vatCents,
-        })),
-        orderId: order.id,
-        organizationId: order.organizationId,
-        provider: "MOCK",
-        status: "ISSUED",
-        subtotalNetCents: order.subtotalNetCents,
-        totalGrossCents: order.totalGrossCents,
-        vatCents: order.vatCents,
-      },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: "invoice.issued",
+          entityId: created.id,
+          entityType: "Invoice",
+          metadata: {
+            invoiceNumber: created.invoiceNumber,
+            mock: true,
+            orderId: order.id,
+            wantsInvoice: order.wantsInvoice,
+          },
+          organizationId: order.organizationId,
+        },
+      });
+
+      return created;
     });
 
     await sendTransactionalEmail({

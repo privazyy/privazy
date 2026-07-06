@@ -1,6 +1,6 @@
 # SHOP_CHECKOUT
 
-Ten dokument opisuje fundament sklepu PRIVAZY z Fazy 5: katalog produktow, koszyk, checkout, zamowienia i przygotowanie pod formularze dokumentow z Fazy 6.
+Ten dokument opisuje kontrolowany fundament sklepu PRIVAZY z Fazy 5R: katalog produktow, koszyk, checkout, zamowienia, platnosci mock/sandbox i przygotowanie pod formularze dokumentow z Fazy 6R. Ta faza nie uruchamia produkcyjnej sprzedazy.
 
 ## Trasy
 
@@ -22,10 +22,11 @@ Sklep uzywa modeli:
 - `BillingProfile`
 - `Order`, `OrderItem`
 - `Payment`
+- `PaymentEvent`
 - `Invoice`
 - `AuditLog`
 
-Produkty startowe sa w `src/lib/shop/products.ts`, a seed jest w `prisma/seed.mjs`. Seed tworzy 12 produktow startowych: pojedyncze dokumenty RODO oraz pakiety Mikro, Standard i Pro.
+Produkty startowe sa w `src/lib/shop/products.ts`, a seed jest w `prisma/seed.mjs`. Seed tworzy 12 produktow startowych: pojedyncze dokumenty RODO oraz pakiety Mikro, Standard i Pro. Produkty dokumentowe maja `documentType` i `templateKey` jako zaczep dla generatorow z Fazy 6R.
 
 ## Koszyk
 
@@ -36,6 +37,8 @@ Koszyk jest zrodlem prawdy po stronie serwera:
 - backend liczy netto, VAT, brutto i rabat,
 - koszyk jest trwaly przez cookie sesyjne,
 - archiwalne produkty nie moga byc dodane ani zakupione.
+- produkty z cena 0 nie moga byc kupione w tej fazie,
+- kupony musza byc aktywne, w oknie dat, w limicie uzyc i w tej samej walucie.
 
 Cookie:
 
@@ -56,6 +59,7 @@ Checkout zbiera:
 - nazwe firmy i NIP dla firmy,
 - adres faktury,
 - kraj,
+- informacje, czy klient chce fakture,
 - zgody na regulamin, polityke prywatnosci i kontakt.
 
 Walidacja jest w `checkoutPayloadSchema` w `src/server/shop/checkout.ts`.
@@ -66,10 +70,13 @@ Checkout tworzy transakcyjnie:
 - `BillingProfile`
 - `Order`
 - `OrderItem`
+- `Payment`
 - aktualizacje `Cart` do `CHECKED_OUT`
 - `AuditLog` z akcja `order.created`
 
 Po zapisaniu zamowienia wywolywany jest `PaymentProvider.createPayment`, a klient dostaje URL platnosci. Kwoty sa zawsze przeliczane po stronie serwera na podstawie aktualnych produktow, wiec klient nie moze podmienic ceny.
+
+`BillingProfile.wantsInvoice` i `Order.wantsInvoice` przechowuja intencje faktury. Mock invoice provider moze zapisac wewnetrzny rekord rozliczeniowy, ale finalne reguly fakturowania wymagaja decyzji przed produkcja.
 
 ## Statusy
 
@@ -108,6 +115,8 @@ Po zapisaniu zamowienia wywolywany jest `PaymentProvider.createPayment`, a klien
 
 Po potwierdzeniu platnosci `Order` przechodzi na `PAID`, a pozycje w `PENDING_PAYMENT` przechodza na `INPUT_REQUIRED`.
 
+Szczegolowy model statusow jest w [ORDER_STATUS_MODEL.md](ORDER_STATUS_MODEL.md).
+
 ## Powiazanie z Faza 6
 
 Kazdy `OrderItem` dostaje `inputFormPath` w formacie:
@@ -125,8 +134,9 @@ Dane zamowien dla CRM sa przygotowane w `src/server/shop/admin.ts`:
 - `listRecentShopOrders`
 - `listRecentShopInvoices`
 - `listRecentShopPayments`
+- `listRecentShopPaymentEvents`
 
-Pelny redesign CRM nie jest czescia tej fazy. Dane obejmuja klienta, produkty, platnosci, faktury i status realizacji.
+`src/server/crm/data.ts` pokazuje minimalnie produkty, zamowienia, platnosci i faktury w istniejacym CRM. Pelny workflow CRM nie jest czescia tej fazy.
 
 ## Env
 
@@ -136,13 +146,29 @@ SHOP_ORDER_TOKEN_TTL_DAYS=30
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 DATABASE_URL=...
 DIRECT_URL=...
+PAYMENT_PROVIDER=mock
+PAYMENT_MOCK_WEBHOOK_SECRET=replace_in_private_env
+INVOICE_PROVIDER=mock
+RESEND_API_KEY=replace_in_private_env
+RESEND_FROM=replace_in_private_env
 ```
+
+## Supabase i RLS
+
+Nowe tabele Prisma w publicznym schemacie nie oznaczaja automatycznego, bezpiecznego dostepu przez Supabase Data API. Zgodnie z aktualnym changelogiem Supabase nowe tabele moga nie byc automatycznie wystawione do Data API. Przed jakimkolwiek publicznym dostepem przez Supabase client trzeba przygotowac osobne SQL: RLS, policy, granty i decyzje o ekspozycji tabel.
+
+## Testy
+
+Repo nie ma obecnie skryptu `npm test` ani runnera jednostkowego. Funkcje kalkulacji kwot sa w `src/lib/shop/money.ts`, kupony w `src/server/shop/coupons.ts`, a checkout/payment/invoice sa rozdzielone na serwisy, zeby w Fazie 11R latwo dodac testy dla kalkulacji, archived product, price tampering, webhook idempotency, amount/currency mismatch i invoice creation.
 
 ## Przed produkcja
 
 - uruchomic migracje Supabase/Postgres,
 - uruchomic seed produktow,
 - podlaczyc produkcyjny provider platnosci,
+- wykonac sandbox testy realnego providera,
 - dopiac regulamin i polityke prywatnosci checkoutu,
 - dodac UI kodow rabatowych, jesli rabaty beda publiczne,
-- zbudowac formularze dokumentow z Fazy 6.
+- zbudowac formularze dokumentow z Fazy 6R,
+- dopiac generator dokumentow i fulfillment,
+- przygotowac procedury zwrotow/reklamacji w Fazie 12R.

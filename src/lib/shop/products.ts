@@ -13,10 +13,23 @@ export type StarterProduct = {
   expectedDelivery: string;
   legalDisclaimer: string;
   status: "ACTIVE" | "DRAFT" | "ARCHIVED";
+  documentType?:
+    | "AUTHORIZATION_TEMPLATE"
+    | "COOKIE_POLICY"
+    | "DATA_BREACH_PROCEDURE"
+    | "DATA_SUBJECT_REQUEST_PROCEDURE"
+    | "DPIA"
+    | "PRIVACY_POLICY"
+    | "PROCESSING_AGREEMENT"
+    | "PROCESSING_REGISTER"
+    | "RODO_POLICY";
+  templateKey?: string;
   metadata?: {
     badge?: string;
     recommendedFor?: string[];
     routeHint?: string;
+    seoDescription?: string;
+    seoTitle?: string;
   };
 };
 
@@ -38,7 +51,14 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
-    metadata: { badge: "najczęściej wybierany", recommendedFor: ["strona www", "e-commerce", "SaaS"] },
+    documentType: "PRIVACY_POLICY",
+    templateKey: "privacy_policy_rodo",
+    metadata: {
+      badge: "najczęściej wybierany",
+      recommendedFor: ["strona www", "e-commerce", "SaaS"],
+      seoDescription: "Polityka prywatności RODO z formularzem danych i fakturą w sandbox checkout.",
+      seoTitle: "Polityka prywatności RODO - sklep PRIVAZY",
+    },
   },
   {
     name: "Polityka cookies",
@@ -54,7 +74,9 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
-    metadata: { recommendedFor: ["strona www", "marketing"] },
+    documentType: "COOKIE_POLICY",
+    templateKey: "cookie_policy",
+    metadata: { recommendedFor: ["strona www", "marketing"], seoTitle: "Polityka cookies - sklep PRIVAZY" },
   },
   {
     name: "Polityka ochrony danych osobowych",
@@ -70,6 +92,8 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    documentType: "RODO_POLICY",
+    templateKey: "personal_data_protection_policy",
   },
   {
     name: "Rejestr czynności przetwarzania",
@@ -85,6 +109,8 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    documentType: "PROCESSING_REGISTER",
+    templateKey: "processing_register",
   },
   {
     name: "Procedura naruszeń ochrony danych",
@@ -100,6 +126,8 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    documentType: "DATA_BREACH_PROCEDURE",
+    templateKey: "data_breach_procedure",
   },
   {
     name: "Procedura obsługi żądań osób",
@@ -115,6 +143,8 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    documentType: "DATA_SUBJECT_REQUEST_PROCEDURE",
+    templateKey: "data_subject_request_procedure",
   },
   {
     name: "Umowa powierzenia przetwarzania",
@@ -130,6 +160,8 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    documentType: "PROCESSING_AGREEMENT",
+    templateKey: "processing_agreement",
   },
   {
     name: "Upoważnienia i ewidencja upoważnień",
@@ -145,6 +177,8 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    documentType: "AUTHORIZATION_TEMPLATE",
+    templateKey: "authorization_register",
   },
   {
     name: "DPIA",
@@ -160,6 +194,8 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz danych po opłaceniu zamówienia. Generowanie dokumentu w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    documentType: "DPIA",
+    templateKey: "dpia",
     metadata: { recommendedFor: ["dane wrażliwe", "monitoring", "medycyna"] },
   },
   {
@@ -176,6 +212,7 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz pakietowy po opłaceniu zamówienia. Generowanie dokumentów w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    templateKey: "package_micro",
   },
   {
     name: "Pakiet Standard",
@@ -191,6 +228,7 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz pakietowy po opłaceniu zamówienia. Generowanie dokumentów w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    templateKey: "package_standard",
     metadata: { badge: "rekomendowany" },
   },
   {
@@ -207,6 +245,7 @@ export const starterProducts: StarterProduct[] = [
     expectedDelivery: "Formularz pakietowy po opłaceniu zamówienia. Generowanie dokumentów w Fazie 6.",
     legalDisclaimer: disclaimer,
     status: "ACTIVE",
+    templateKey: "package_pro",
     metadata: { recommendedFor: ["medycyna", "HR", "SaaS", "większa skala"] },
   },
 ];

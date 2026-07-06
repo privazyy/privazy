@@ -192,6 +192,7 @@ export function CheckoutForm({ cart }: { cart: CartView }) {
       nip: String(form.get("nip") ?? ""),
       phone: String(form.get("phone") ?? ""),
       postalCode: String(form.get("postalCode") ?? ""),
+      wantsInvoice: form.get("wantsInvoice") === "on",
       consents: {
         contact: form.get("contact") === "on",
         privacy: form.get("privacy") === "on",
@@ -294,8 +295,21 @@ export function CheckoutForm({ cart }: { cart: CartView }) {
           </div>
 
           <div className="grid gap-3 rounded-[var(--radius-md)] bg-[var(--gray-50)] p-4 text-sm text-[var(--text-body)]">
-            <Checkbox name="terms" required>Akceptuje regulamin sprzedazy dokumentow PRIVAZY.</Checkbox>
-            <Checkbox name="privacy" required>Akceptuje polityke prywatnosci i przetwarzanie danych do realizacji zamowienia.</Checkbox>
+            <Checkbox name="wantsInvoice" defaultChecked>Chce otrzymac fakture do zamowienia.</Checkbox>
+            <Checkbox name="terms" required>
+              Akceptuje{" "}
+              <Link href={"/regulamin" as Route} className="font-semibold text-[var(--brand-ink)] underline-offset-4 hover:underline">
+                regulamin sprzedazy
+              </Link>
+              .
+            </Checkbox>
+            <Checkbox name="privacy" required>
+              Akceptuje{" "}
+              <Link href={"/polityka-prywatnosci" as Route} className="font-semibold text-[var(--brand-ink)] underline-offset-4 hover:underline">
+                polityke prywatnosci
+              </Link>{" "}
+              i przetwarzanie danych do realizacji zamowienia.
+            </Checkbox>
             <Checkbox name="contact">Chce otrzymywac informacje o aktualizacjach dokumentow.</Checkbox>
           </div>
 
@@ -312,11 +326,22 @@ export function CheckoutForm({ cart }: { cart: CartView }) {
   );
 }
 
-function Checkbox({ children, name, required }: { children: React.ReactNode; name: string; required?: boolean }) {
+function Checkbox({
+  children,
+  defaultChecked,
+  name,
+  required,
+}: {
+  children: React.ReactNode;
+  defaultChecked?: boolean;
+  name: string;
+  required?: boolean;
+}) {
   return (
     <label className="flex gap-3 leading-6">
       <input
         className="mt-1 size-4 shrink-0 rounded border-[var(--border-default)] accent-[var(--brand)]"
+        defaultChecked={defaultChecked}
         name={name}
         required={required}
         type="checkbox"

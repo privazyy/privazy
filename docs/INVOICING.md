@@ -1,10 +1,11 @@
 # INVOICING
 
-Faza 5 przygotowuje model i interfejs faktur bez integracji z zewnetrznym systemem fakturowym. Mock provider wystawia wewnetrzna fakture po potwierdzeniu platnosci.
+Faza 5R przygotowuje model i interfejs faktur bez integracji z zewnetrznym systemem fakturowym. Mock provider wystawia wewnetrzny rekord faktury po potwierdzeniu platnosci.
 
 ## Pliki
 
 - `src/server/invoices/invoice-provider.ts` - kontrakt providerow faktur.
+- `src/server/invoices/invoice-service.ts` - jeden punkt wywolania faktury dla platnosci i przyszlych integracji.
 - `src/server/invoices/mock-provider.ts` - implementacja testowa.
 - `src/server/invoices/index.ts` - wybor providera.
 - `prisma/schema.prisma` - model `Invoice`.
@@ -23,6 +24,7 @@ Faza 5 przygotowuje model i interfejs faktur bez integracji z zewnetrznym system
 - kwoty netto, VAT i brutto,
 - walute,
 - date wystawienia.
+- `externalInvoiceId` i `externalUrl` pozostaja puste w mocku.
 
 Statusy:
 
@@ -44,7 +46,9 @@ Mock provider:
 - nie tworzy duplikatu, jesli zamowienie ma juz fakture,
 - nadaje numer `FV-MOCK/{year}/{orderNumber}`,
 - zapisuje snapshot nabywcy i pozycji,
+- zapisuje `wantsInvoice` w buyer snapshot,
 - ustawia status `ISSUED`,
+- tworzy `AuditLog` `invoice.issued`,
 - wysyla e-mail o fakturze, jesli Resend jest skonfigurowany.
 
 Mock faktura nie jest dokumentem ksiegowym gotowym do produkcji. To wewnetrzny zapis techniczny i punkt integracyjny dla Fakturownia, inFakt, wFirma albo innego dostawcy.
@@ -59,6 +63,8 @@ Dane nabywcy pochodza z `BillingProfile`, ktory jest tworzony w checkoutcie. Dla
 - e-mail.
 
 Dla osoby prywatnej zapisywane sa dane imienne i adresowe bez NIP.
+
+`Order.wantsInvoice` i `BillingProfile.wantsInvoice` przechowuja intencje klienta. W sandboxie mock moze nadal zapisac wewnetrzny rekord rozliczeniowy, bo nie jest to finalny dokument ksiegowy.
 
 ## E-mail
 
@@ -85,4 +91,5 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 - okreslic korekty, anulacje i zwroty,
 - dodac link do PDF faktury z providera,
 - zweryfikowac obowiazki podatkowe i format danych nabywcy,
-- dodac testy integracyjne sandbox providera.
+- dodac testy integracyjne sandbox providera,
+- opisac obsluge korekt i zwrotow w Fazie 12R.

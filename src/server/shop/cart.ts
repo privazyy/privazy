@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { calculateLine, sumBreakdowns } from "@/lib/shop/money";
 import type { CartView } from "@/lib/shop/types";
 import { getPrisma } from "@/server/db/prisma";
+import { calculateCouponDiscount } from "@/server/shop/coupons";
 
 export const CART_COOKIE_NAME = process.env.SHOP_CART_COOKIE_NAME ?? "privazy_cart_id";
 
@@ -52,6 +53,9 @@ export async function addCartItem(input: { productSlug: string; quantity?: numbe
     if (!product || product.status !== "ACTIVE") {
       throw new Error("Produkt jest niedostępny albo archiwalny.");
     }
+    if (product.priceNetCents <= 0) {
+      throw new Error("Produkt nie ma aktywnej ceny sprzedażowej.");
+    }
 
     const existing = await tx.cartItem.findFirst({
       where: {
@@ -62,9 +66,10 @@ export async function addCartItem(input: { productSlug: string; quantity?: numbe
     });
 
     const snapshot = buildProductSnapshot(product);
+    const nextQuantity = existing ? Math.min(10, existing.quantity + quantity) : quantity;
     const line = calculateLine({
       currency: product.currency,
-      quantity,
+      quantity: nextQuantity,
       unitNetCents: product.priceNetCents,
       vatRateBps: product.vatRateBps,
     });
@@ -74,7 +79,7 @@ export async function addCartItem(input: { productSlug: string; quantity?: numbe
         data: {
           currency: product.currency,
           productSnapshot: snapshot,
-          quantity: Math.min(10, existing.quantity + quantity),
+          quantity: nextQuantity,
           unitNetCents: product.priceNetCents,
           vatRateBps: product.vatRateBps,
         },
@@ -174,18 +179,6 @@ async function recalculateCart(tx: Prisma.TransactionClient, cartId: string) {
     data: totals,
     where: { id: cartId },
   });
-}
-
-function calculateCouponDiscount(
-  coupon: { amountOffCents: number | null; percentOffBps: number | null; status: string } | null,
-  lines: Array<{ totalGrossCents: number }>,
-) {
-  if (!coupon || coupon.status !== "ACTIVE") return 0;
-
-  const gross = lines.reduce((sum, line) => sum + line.totalGrossCents, 0);
-  if (coupon.amountOffCents) return coupon.amountOffCents;
-  if (coupon.percentOffBps) return Math.round((gross * coupon.percentOffBps) / 10_000);
-  return 0;
 }
 
 function buildProductSnapshot(product: {

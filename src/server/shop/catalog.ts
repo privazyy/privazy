@@ -9,6 +9,7 @@ export type ShopProduct = Pick<
   Product,
   | "currency"
   | "description"
+  | "documentType"
   | "expectedDelivery"
   | "id"
   | "includedFiles"
@@ -20,6 +21,7 @@ export type ShopProduct = Pick<
   | "shortDescription"
   | "slug"
   | "status"
+  | "templateKey"
   | "vatRateBps"
 > & {
   variants?: ProductVariant[];
@@ -61,7 +63,7 @@ export async function getShopProductBySlug(slug: string) {
     where: { slug },
   });
 
-  if (!product || product.status === "ARCHIVED") return null;
+  if (!product || product.status !== "ACTIVE") return null;
   return product as ShopProduct;
 }
 

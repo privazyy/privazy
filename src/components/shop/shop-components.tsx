@@ -241,6 +241,9 @@ export function OrderStatusView({ order }: { order: PublicOrderView }) {
             </Badge>
             <h1 className="mt-4 text-[var(--fs-h1)] font-bold">Zamowienie {order.orderNumber}</h1>
             <p className="mt-3 text-base leading-7 text-[var(--text-body)]">Tutaj widzisz status platnosci, faktury i produktow. Link jest publiczny, ale wymaga unikalnego tokenu z maila.</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+              Kolejny krok po oplaceniu: uzupelnienie formularza dokumentu w Fazie 6R. Link formularza jest placeholderem i nie uruchamia jeszcze generatora.
+            </p>
 
             <div className="mt-8 grid gap-4">
               {order.items.map((item) => (
@@ -286,6 +289,9 @@ export function OrderStatusView({ order }: { order: PublicOrderView }) {
 
             <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
               <h3 className="text-sm font-bold text-[var(--text-strong)]">Faktury</h3>
+              <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                {order.wantsInvoice ? "Klient zaznaczyl chec otrzymania faktury." : "Klient nie zaznaczyl potrzeby faktury, ale sandbox moze zapisac wewnetrzny rekord rozliczeniowy."}
+              </p>
               {order.invoices.length > 0 ? (
                 <div className="mt-3 grid gap-2">
                   {order.invoices.map((invoice) => (

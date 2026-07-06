@@ -16,15 +16,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     };
   }
 
+  const seo = getProductSeo(product.metadata);
+
   return {
-    title: `${product.name} - sklep PRIVAZY`,
-    description: product.shortDescription,
+    title: seo.title ?? `${product.name} - sklep PRIVAZY`,
+    description: seo.description ?? product.shortDescription,
     alternates: {
       canonical: `/sklep/${product.slug}`,
     },
     openGraph: {
-      description: product.shortDescription,
-      title: product.name,
+      description: seo.description ?? product.shortDescription,
+      title: seo.title ?? product.name,
       type: "website",
       url: `/sklep/${product.slug}`,
     },
@@ -38,4 +40,14 @@ export default async function ShopProductPage({ params }: { params: Promise<{ sl
   if (!product) notFound();
 
   return <ShopProductDetail product={product} />;
+}
+
+function getProductSeo(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
+
+  const candidate = metadata as { seoDescription?: unknown; seoTitle?: unknown };
+  return {
+    description: typeof candidate.seoDescription === "string" ? candidate.seoDescription : undefined,
+    title: typeof candidate.seoTitle === "string" ? candidate.seoTitle : undefined,
+  };
 }

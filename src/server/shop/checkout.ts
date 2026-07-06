@@ -9,7 +9,8 @@ import { calculateLine, sumBreakdowns } from "@/lib/shop/money";
 import type { PublicOrderView } from "@/lib/shop/types";
 import { getPrisma } from "@/server/db/prisma";
 import { orderConfirmationEmail, sendTransactionalEmail } from "@/server/email/transactional";
-import { getPaymentProvider } from "@/server/payments";
+import { createPaymentForOrder } from "@/server/payments/payment-service";
+import { calculateCouponDiscount } from "@/server/shop/coupons";
 
 export const checkoutPayloadSchema = z
   .object({
@@ -24,6 +25,7 @@ export const checkoutPayloadSchema = z
     nip: z.string().trim().optional(),
     phone: z.string().trim().optional(),
     postalCode: z.string().trim().min(4, "Podaj kod pocztowy."),
+    wantsInvoice: z.boolean().default(true),
     consents: z.object({
       contact: z.boolean().optional(),
       privacy: z.boolean(),
@@ -81,10 +83,16 @@ export async function createCheckoutOrder(input: {
       if (item.product.status !== "ACTIVE") {
         throw new Error(`Produkt ${item.product.name} nie jest juz dostepny.`);
       }
+      if (item.variant && item.variant.status !== "ACTIVE") {
+        throw new Error(`Wariant produktu ${item.product.name} nie jest juz dostepny.`);
+      }
 
       const unitNetCents = item.variant?.priceNetCents ?? item.product.priceNetCents;
       const vatRateBps = item.variant?.vatRateBps ?? item.product.vatRateBps;
       const currency = item.variant?.currency ?? item.product.currency;
+      if (unitNetCents <= 0) {
+        throw new Error(`Produkt ${item.product.name} nie ma aktywnej ceny sprzedazowej.`);
+      }
       const line = calculateLine({ currency, quantity: item.quantity, unitNetCents, vatRateBps });
 
       return {
@@ -104,6 +112,9 @@ export async function createCheckoutOrder(input: {
       lineItems.map((item) => item.line),
       calculateCouponDiscount(cart.coupon, lineItems.map((item) => item.line)),
     );
+    if (totals.totalGrossCents <= 0) {
+      throw new Error("Checkout zerowy nie jest wlaczony w tej fazie.");
+    }
 
     const organization = await tx.organization.create({
       data: {
@@ -133,6 +144,7 @@ export async function createCheckoutOrder(input: {
         organizationId: organization.id,
         phone: input.payload.phone || null,
         postalCode: input.payload.postalCode,
+        wantsInvoice: input.payload.wantsInvoice,
       },
     });
 
@@ -164,6 +176,7 @@ export async function createCheckoutOrder(input: {
         subtotalNetCents: totals.subtotalNetCents,
         totalGrossCents: totals.totalGrossCents,
         vatCents: totals.vatCents,
+        wantsInvoice: input.payload.wantsInvoice,
       },
     });
 
@@ -206,6 +219,12 @@ export async function createCheckoutOrder(input: {
       },
       where: { id: cart.id },
     });
+    if (cart.couponId && totals.discountCents > 0) {
+      await tx.coupon.update({
+        data: { redeemedCount: { increment: 1 } },
+        where: { id: cart.couponId },
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -224,7 +243,7 @@ export async function createCheckoutOrder(input: {
     return order;
   });
 
-  const payment = await getPaymentProvider().createPayment({
+  const payment = await createPaymentForOrder({
     amountGrossCents: checkout.totalGrossCents,
     currency: checkout.currency,
     orderId: checkout.id,
@@ -308,6 +327,7 @@ export async function getPublicOrderView(orderNumber: string, token: string): Pr
     subtotalNetCents: order.subtotalNetCents,
     totalGrossCents: order.totalGrossCents,
     vatCents: order.vatCents,
+    wantsInvoice: order.wantsInvoice,
   };
 }
 
@@ -326,18 +346,6 @@ function buildOrderProductSnapshot(
     slug: item.product.slug,
     vatRateBps: item.variant?.vatRateBps ?? item.product.vatRateBps,
   };
-}
-
-function calculateCouponDiscount(
-  coupon: { amountOffCents: number | null; percentOffBps: number | null; status: string } | null,
-  lines: Array<{ totalGrossCents: number }>,
-) {
-  if (!coupon || coupon.status !== "ACTIVE") return 0;
-
-  const gross = lines.reduce((sum, line) => sum + line.totalGrossCents, 0);
-  if (coupon.amountOffCents) return coupon.amountOffCents;
-  if (coupon.percentOffBps) return Math.round((gross * coupon.percentOffBps) / 10_000);
-  return 0;
 }
 
 async function createOrderNumber(tx: Prisma.TransactionClient) {

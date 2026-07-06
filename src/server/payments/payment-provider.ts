@@ -16,6 +16,7 @@ export type CreatePaymentResult = {
 
 export type PaymentWebhookResult = {
   orderNumber: string;
+  providerEventId?: string;
   status: "PAID" | "FAILED" | "IGNORED";
 };
 
