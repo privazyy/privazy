@@ -7,6 +7,7 @@ These may be exposed to browser/client code.
 | Name | Purpose |
 | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | Local or deployed app URL. |
+| `NEXT_PUBLIC_APP_URL` | Backward-compatible public app URL fallback. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous public key. |
 | `NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY` | Public Cloudflare Turnstile site key, if used. |
@@ -43,6 +44,20 @@ These must not be exposed to browser/client code.
 | `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | Cloudflare R2 S3-compatible secret access key. |
 | `CLOUDFLARE_KV_NAMESPACE_ID` | Cloudflare KV namespace ID, if used. |
 | `CLOUDFLARE_TURNSTILE_SECRET_KEY` | Server-side Cloudflare Turnstile secret key. |
+| `R2_ACCOUNT_ID` | Cloudflare R2 account ID for document storage. |
+| `R2_ACCESS_KEY_ID` | R2 access key ID. |
+| `R2_SECRET_ACCESS_KEY` | R2 secret access key. |
+| `R2_BUCKET` | R2 bucket name. |
+| `R2_ENDPOINT` | S3-compatible R2 endpoint. |
+
+## QA / Release Variables
+
+| Name | Purpose |
+| --- | --- |
+| `APP_ENV` | Explicit environment target for `env:check` (`development`, `preview`, `staging`, `production`, `test`). |
+| `LOG_REDACTION_ENABLED` | Documents that logs must pass through redaction helpers before external sinks. |
+| `E2E_BASE_URL` | Optional base URL for `npm run test:e2e`. Empty value means the smoke test is skipped. |
+| `E2E_ROUTES` | Optional comma-separated E2E smoke route list. |
 
 ## Notes
 
@@ -50,3 +65,5 @@ These must not be exposed to browser/client code.
 - Use `.env.local` for local development.
 - Use Vercel Project Settings for deployed environment values.
 - Use GitHub repository secrets for GitHub Actions.
+- Run `npm run env:check` before preview/staging/production releases.
+- Do not place service-role keys, database URLs, tokens, webhook secrets, or private keys in `NEXT_PUBLIC_*`.

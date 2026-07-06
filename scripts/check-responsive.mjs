@@ -8,17 +8,17 @@ const publicRoutes = [
   "/",
   "/blog",
   "/blog/czy-musisz-powolac-inspektora-ochrony-danych",
+  "/sklep",
   "/sklep/polityka-prywatnosci",
+  "/sklep/pakiety",
+  "/koszyk",
+  "/checkout",
 ];
 const privateRoutes = [
   "/admin",
   "/platforma",
   "/platforma/dokumenty",
   "/platforma/zamowienia",
-  "/sklep",
-  "/sklep/pakiety",
-  "/koszyk",
-  "/checkout",
 ];
 const routes = process.env.RESPONSIVE_ROUTES
   ? process.env.RESPONSIVE_ROUTES.split(",").map((route) => route.trim()).filter(Boolean)

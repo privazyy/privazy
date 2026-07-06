@@ -8,9 +8,19 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "env:check": "node scripts/validate-env.mjs",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:permissions": "vitest run tests/permissions",
+    "test:security": "vitest run tests/security",
+    "qa": "npm run env:check && npm run prisma:generate && npm run prisma:validate && npm run lint && npm run typecheck && npm run test && npm run build && npm run responsive:check",
+    "qa:ci": "npm run env:check && npm run prisma:generate && npm run prisma:validate && npm run lint && npm run typecheck && npm run test:unit && npm run test:integration && npm run test:permissions && npm run test:security && npm run build",
     "responsive:check": "node scripts/check-responsive.mjs",
     "cms:seed-blog": "node scripts/seed-blog-cms.mjs",
     "prisma:generate": "prisma generate",
+    "prisma:validate": "node scripts/prisma-validate.mjs",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio"
@@ -51,11 +61,13 @@
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.1",
     "prisma": "^6.19.1",
     "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "postcss": "^8.5.10"
