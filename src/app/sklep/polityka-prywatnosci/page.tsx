@@ -1,46 +1,23 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { ProductPage } from "@/components/product/product-page";
-import { privacyPolicyProduct, productFaqJsonLd, productJsonLd } from "@/lib/product";
+import { ShopProductDetail } from "@/components/shop/shop-components";
+import { getShopProductBySlug } from "@/server/shop/catalog";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: privacyPolicyProduct.metaTitle,
-  description: privacyPolicyProduct.metaDescription,
+  title: "Polityka prywatnosci RODO - sklep PRIVAZY",
+  description: "Kup polityke prywatnosci RODO z plikami do wdrozenia, platnoscia online i faktura.",
   alternates: {
-    canonical: privacyPolicyProduct.url,
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  openGraph: {
-    title: privacyPolicyProduct.metaTitle,
-    description:
-      "Polityka prywatności zgodna z RODO, dopasowana do Twojej firmy. Pliki .docx, PDF i HTML, aktualizacje, natychmiastowy dostęp. 190 zł.",
-    url: privacyPolicyProduct.url,
-    siteName: "PRIVAZY",
-    locale: "pl_PL",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: privacyPolicyProduct.metaTitle,
-    description: privacyPolicyProduct.metaDescription,
+    canonical: "/sklep/polityka-prywatnosci",
   },
 };
 
-export default function PrivacyPolicyProductRoute() {
-  return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productFaqJsonLd) }}
-      />
-      <ProductPage />
-    </>
-  );
+export default async function PrivacyPolicyProductRoute() {
+  const product = await getShopProductBySlug("polityka-prywatnosci");
+
+  if (!product) notFound();
+
+  return <ShopProductDetail product={product} />;
 }

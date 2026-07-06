@@ -23,9 +23,21 @@ export async function requestDocumentGeneration(input: DocumentGenerationInput) 
 export async function generateDocumentFromJob(jobId: string) {
   const prisma = getPrisma();
 
+  const existingDocument = await prisma.generatedDocument.findUnique({
+    where: { generationJobId: jobId },
+  });
+
+  if (existingDocument) {
+    await prisma.documentGenerationJob.update({
+      data: { completedAt: new Date(), status: DocumentGenerationStatus.COMPLETED },
+      where: { id: jobId },
+    });
+    return existingDocument;
+  }
+
   const job = await prisma.documentGenerationJob.update({
     where: { id: jobId },
-    data: { status: DocumentGenerationStatus.PROCESSING, errorMessage: null },
+    data: { attempts: { increment: 1 }, status: DocumentGenerationStatus.PROCESSING, errorMessage: null },
     include: { template: true },
   });
 
