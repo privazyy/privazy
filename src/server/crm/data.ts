@@ -215,6 +215,10 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
     blogPosts,
     newsletterSubscribers,
     marketingEvents,
+    eventLogs,
+    automationRuns,
+    emailLogs,
+    notifications,
     counts,
   ] = await Promise.all([
     listIodCrmLeads(100),
@@ -361,6 +365,26 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
+    prisma.eventLog.findMany({
+      include: { organization: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.automationRun.findMany({
+      include: { organization: true, rule: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.emailLog.findMany({
+      include: { organization: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.notification.findMany({
+      include: { organization: true, user: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
     getCounts(),
   ]);
 
@@ -387,6 +411,64 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
   const leadConversion = crmLeads.length > 0 ? Math.round((wonLeads / crmLeads.length) * 100) : 0;
 
   const leadRows = buildLeadRows(crmLeads, iodLeads);
+  const automationRows: TableRow[] = [
+    ...eventLogs.map((eventLog) => ({
+      cells: [
+        "EventLog",
+        eventLog.eventType,
+        eventLog.status,
+        eventLog.organization?.name ?? "-",
+        eventLog.errorMessage ?? "-",
+        formatDateTime(eventLog.createdAt),
+        "",
+      ],
+      primary: eventLog.idempotencyKey,
+      secondary: eventLog.id,
+      status: { label: eventLog.status, tone: statusTone(eventLog.status) },
+    })),
+    ...automationRuns.map((run) => ({
+      cells: [
+        "AutomationRun",
+        run.functionName,
+        run.status,
+        run.organization?.name ?? "-",
+        run.errorMessage ?? `attempts: ${run.attempts}/${run.maxAttempts}`,
+        formatDateTime(run.createdAt),
+        "",
+      ],
+      primary: run.idempotencyKey,
+      secondary: run.rule?.name ?? run.id,
+      status: { label: run.status, tone: statusTone(run.status) },
+    })),
+    ...emailLogs.map((emailLog) => ({
+      cells: [
+        "EmailLog",
+        emailLog.template,
+        emailLog.status,
+        emailLog.organization?.name ?? "-",
+        emailLog.error ?? emailLog.recipient,
+        formatDateTime(emailLog.createdAt),
+        "",
+      ],
+      primary: emailLog.subject,
+      secondary: emailLog.idempotencyKey,
+      status: { label: emailLog.status, tone: statusTone(emailLog.status) },
+    })),
+    ...notifications.map((notification) => ({
+      cells: [
+        "Notification",
+        notification.type,
+        notification.status,
+        notification.organization?.name ?? notification.user?.email ?? "-",
+        notification.body ?? "-",
+        formatDateTime(notification.createdAt),
+        "",
+      ],
+      primary: notification.title,
+      secondary: notification.entityType ? `${notification.entityType}:${notification.entityId ?? "-"}` : notification.id,
+      status: { label: notification.status, tone: statusTone(notification.status) },
+    })),
+  ].slice(0, 160);
   const clientRows = organizations.map<TableRow>((organization) => {
     const hasActivity =
       organization._count.formSubmissions +
@@ -938,19 +1020,19 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       title: "Audit log",
     }),
     automations: makeModule({
-      action: "Nowa automatyzacja",
-      columns: ["Automatyzacja", "Trigger", "Status", "Ostatni event", ""],
-      emptyMessage: "Brak tabel automatyzacji; eventy sa reprezentowane przez CrmActivity i Inngest.",
+      action: "Retry failed",
+      columns: ["Rekord", "Typ / funkcja", "Status", "Organizacja", "Blad / kontekst", "Czas", ""],
+      emptyMessage: "Brak eventow, runow, maili lub notyfikacji w bazie danych.",
       icon: "Workflow",
       kpis: [
-        { icon: "Workflow", label: "Eventy CRM", value: String(counts.crmActivities), tone: "brand" },
-        { icon: "FileSearch", label: "Joby dokumentow", value: String(counts.generationJobs), tone: "neutral" },
-        { icon: "ShoppingCart", label: "Zamowienia", value: String(counts.orders), tone: "neutral" },
-        { icon: "TriangleAlert", label: "Alerty", value: String(alerts.length), tone: alerts.length > 0 ? "warning" : "neutral" },
+        { icon: "Workflow", label: "EventLog", value: String(counts.eventLogs), tone: "brand" },
+        { icon: "Activity", label: "AutomationRun", value: String(counts.automationRuns), tone: "neutral" },
+        { icon: "Mail", label: "EmailLog", value: String(counts.emailLogs), tone: "neutral" },
+        { icon: "Bell", label: "Notifications", value: String(counts.notifications), tone: counts.notifications > 0 ? "warning" : "neutral" },
       ],
       route: "automations",
-      rows: [],
-      subtitle: "Przygotowane punkty zdarzen: order/paid, document/generate.requested i CrmActivity.",
+      rows: automationRows,
+      subtitle: "Event store, run history, e-mail logi i notyfikacje z kontrolowana idempotencja.",
       title: "Automatyzacje",
     }),
     inbox: makeModule({
@@ -1251,6 +1333,10 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       blogPostsCount,
       newsletterSubscribersCount,
       marketingEventsCount,
+      eventLogsCount,
+      automationRunsCount,
+      emailLogsCount,
+      notificationsCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
@@ -1275,10 +1361,15 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       prisma.blogPost.count(),
       prisma.newsletterSubscriber.count(),
       prisma.marketingEvent.count(),
+      prisma.eventLog.count(),
+      prisma.automationRun.count(),
+      prisma.emailLog.count(),
+      prisma.notification.count(),
     ]);
 
     return {
       auditLogs: auditLogsCount,
+      automationRuns: automationRunsCount,
       blogPosts: blogPostsCount,
       breachIncidents: breachIncidentsCount,
       clientProfiles,
@@ -1289,12 +1380,15 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       crmNotes: crmNotesCount,
       crmTasks: crmTasksCount,
       dataSubjectRequests: dataSubjectRequestsCount,
+      emailLogs: emailLogsCount,
+      eventLogs: eventLogsCount,
       formSubmissions: formSubmissionsCount,
       generatedDocuments: generatedDocumentsCount,
       generationJobs,
       invoices: invoicesCount,
       marketingEvents: marketingEventsCount,
       newsletterSubscribers: newsletterSubscribersCount,
+      notifications: notificationsCount,
       orders: ordersCount,
       payments: paymentsCount,
       products: productsCount,

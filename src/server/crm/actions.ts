@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { inngest } from "@/server/inngest/client";
+import { buildIdempotencyKey } from "@/server/automations/idempotency";
 import { writeCrmAudit } from "@/server/crm/audit";
 import { assertAdminCrm, assertCanMutateCrm, canRetryDocumentJob, requireCrmActor } from "@/server/crm/permissions";
 import { getPrisma } from "@/server/db/prisma";
+import { emitEvent } from "@/server/events/emit-event";
+import { isWorkflowEventType } from "@/server/events/event-types";
 
 const entitySchema = z.object({
   entityId: z.string().min(1).max(160),
@@ -50,6 +52,10 @@ const updateOrderStatusSchema = z.object({
 
 const retryJobSchema = z.object({
   jobId: z.string().min(1),
+});
+
+const retryAutomationSchema = z.object({
+  runId: z.string().min(1),
 });
 
 const updateGeneratedDocumentStatusSchema = z.object({
@@ -110,6 +116,14 @@ export async function updateCrmLeadStatus(rawInput: unknown) {
     metadata: { status: input.status },
     organizationId: lead.organizationId,
   });
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "lead.status.changed.v1",
+    idempotencyKey: buildIdempotencyKey(["lead-status", lead.id, input.status]),
+    organizationId: lead.organizationId,
+    payload: { actorId: actor.id, entityId: lead.id, entityType: "CrmLead", organizationId: lead.organizationId, resourceId: lead.id, status: input.status },
+    source: "crm",
+  });
   revalidatePath("/admin");
   return lead;
 }
@@ -131,6 +145,14 @@ export async function assignCrmLead(rawInput: unknown) {
     entityType: "CrmLead",
     metadata: { ownerId: input.ownerId },
     organizationId: lead.organizationId,
+  });
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "lead.assigned.v1",
+    idempotencyKey: buildIdempotencyKey(["lead-assigned", lead.id, input.ownerId ?? "unassigned"]),
+    organizationId: lead.organizationId,
+    payload: { actorId: actor.id, entityId: lead.id, entityType: "CrmLead", organizationId: lead.organizationId, resourceId: lead.id },
+    source: "crm",
   });
   revalidatePath("/admin");
   return lead;
@@ -160,6 +182,14 @@ export async function createCrmNote(rawInput: unknown) {
     entityType: "CrmNote",
     metadata: { targetEntityId: input.entityId, targetEntityType: input.entityType },
     organizationId: note.organizationId,
+  });
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "crm.note.created.v1",
+    idempotencyKey: buildIdempotencyKey(["crm-note", note.id]),
+    organizationId: note.organizationId,
+    payload: { actorId: actor.id, entityId: note.id, entityType: "CrmNote", organizationId: note.organizationId, resourceId: note.id },
+    source: "crm",
   });
   revalidatePath("/admin");
   return note;
@@ -192,6 +222,14 @@ export async function createCrmTask(rawInput: unknown) {
     entityType: "CrmTask",
     metadata: { targetEntityId: input.entityId, targetEntityType: input.entityType },
     organizationId: task.organizationId,
+  });
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "crm.task.created.v1",
+    idempotencyKey: buildIdempotencyKey(["crm-task", task.id]),
+    organizationId: task.organizationId,
+    payload: { actorId: actor.id, entityId: task.id, entityType: "CrmTask", organizationId: task.organizationId, resourceId: task.id, taskId: task.id },
+    source: "crm",
   });
   revalidatePath("/admin");
   return task;
@@ -280,13 +318,67 @@ export async function retryDocumentJobFromCrm(rawInput: unknown) {
     organizationId: job.organizationId,
   });
 
-  await inngest.send({
-    data: { jobId: job.id },
-    name: "document/generate.requested",
+  await emitEvent({
+    actorId: actor.id,
+    critical: true,
+    eventType: "document.generate.requested.v1",
+    idempotencyKey: buildIdempotencyKey(["document-retry", job.id, Date.now()]),
+    organizationId: job.organizationId,
+    payload: { actorId: actor.id, jobId: job.id, organizationId: job.organizationId, resourceId: job.id },
+    source: "crm.retry",
   });
 
   revalidatePath("/admin");
   return job;
+}
+
+export async function retryAutomationRunFromCrm(rawInput: unknown) {
+  const actor = await requireCrmActor();
+  assertCanMutateCrm(actor, "settings");
+  const input = retryAutomationSchema.parse(rawInput);
+  const prisma = getPrisma();
+
+  const run = await prisma.automationRun.findUnique({
+    include: { eventLog: true },
+    where: { id: input.runId },
+  });
+
+  if (!run || !run.eventLog) throw new Error("Automation run with event log not found.");
+  if (!isWorkflowEventType(run.eventLog.eventType)) throw new Error("Unknown workflow event type.");
+  if (run.status !== "FAILED" && run.status !== "RETRY_PENDING") {
+    throw new Error("Only failed or retry-pending automation runs can be retried.");
+  }
+
+  await prisma.automationRun.update({
+    data: { errorMessage: null, nextRetryAt: null, status: "QUEUED" },
+    where: { id: run.id },
+  });
+
+  await emitEvent({
+    actorId: actor.id,
+    eventType: run.eventLog.eventType,
+    idempotencyKey: buildIdempotencyKey(["manual-retry", run.id, Date.now()]),
+    organizationId: run.organizationId,
+    payload: {
+      ...(run.eventLog.payload as Record<string, unknown>),
+      actorId: actor.id,
+      organizationId: run.organizationId,
+      resourceId: run.id,
+    },
+    source: "crm.retry",
+  });
+
+  await writeCrmAudit({
+    action: "crm.automation_retry_requested",
+    actor,
+    entityId: run.id,
+    entityType: "AutomationRun",
+    metadata: { functionName: run.functionName, previousStatus: run.status },
+    organizationId: run.organizationId,
+  });
+
+  revalidatePath("/admin");
+  return run;
 }
 
 export async function updateGeneratedDocumentStatusFromCrm(rawInput: unknown) {
@@ -332,6 +424,14 @@ export async function updateBreachStatusFromCrm(rawInput: unknown) {
     metadata: { status: input.status },
     organizationId: incident.organizationId,
   });
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "breach.status.changed.v1",
+    idempotencyKey: buildIdempotencyKey(["breach-status", incident.id, input.status]),
+    organizationId: incident.organizationId,
+    payload: { actorId: actor.id, entityId: incident.id, entityType: "BreachIncident", organizationId: incident.organizationId, resourceId: incident.id, status: input.status },
+    source: "crm",
+  });
   revalidatePath("/admin");
   return incident;
 }
@@ -357,6 +457,14 @@ export async function updateDataSubjectRequestStatusFromCrm(rawInput: unknown) {
     entityType: "DataSubjectRequest",
     metadata: { status: input.status },
     organizationId: request.organizationId,
+  });
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "dsr.status.changed.v1",
+    idempotencyKey: buildIdempotencyKey(["dsr-status", request.id, input.status]),
+    organizationId: request.organizationId,
+    payload: { actorId: actor.id, entityId: request.id, entityType: "DataSubjectRequest", organizationId: request.organizationId, resourceId: request.id, status: input.status },
+    source: "crm",
   });
   revalidatePath("/admin");
   return request;

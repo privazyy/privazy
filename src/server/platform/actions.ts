@@ -9,7 +9,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { sendTransactionalEmail } from "@/server/email/transactional";
+import { buildIdempotencyKey } from "@/server/automations/idempotency";
 import { getPrisma } from "@/server/db/prisma";
+import { emitEvent } from "@/server/events/emit-event";
 import { writePlatformEvent } from "@/server/platform/audit";
 import {
   assertCanAccessOrganization,
@@ -67,6 +69,10 @@ const taskSchema = organizationSchema.extend({
   taskId: z.string().min(1),
 });
 
+const notificationSchema = organizationSchema.extend({
+  notificationId: z.string().min(1),
+});
+
 const organizationSettingsSchema = organizationSchema.extend({
   email: z.string().trim().email().optional().or(z.literal("")),
   name: requiredString.max(220),
@@ -122,7 +128,7 @@ export async function submitDocumentInputFormAction(formData: FormData) {
     throw new Error("Nie znaleziono formularza dokumentu dla tej organizacji.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  const submission = await prisma.$transaction(async (tx) => {
     const created = await tx.formSubmission.create({
       data: {
         createdById: actor.id,
@@ -160,6 +166,23 @@ export async function submitDocumentInputFormAction(formData: FormData) {
     );
 
     return created;
+  });
+
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "document.input.submitted.v1",
+    idempotencyKey: buildIdempotencyKey(["document-input-submitted", submission.id]),
+    organizationId: input.organizationId,
+    payload: {
+      actorId: actor.id,
+      entityId: submission.id,
+      entityType: "FormSubmission",
+      formSubmissionId: submission.id,
+      orderItemId: orderItem.id,
+      organizationId: input.organizationId,
+      resourceId: submission.id,
+    },
+    source: "platform",
   });
 
   revalidatePath("/platforma");
@@ -223,6 +246,15 @@ export async function createBreachIncidentAction(formData: FormData) {
     );
 
     return created;
+  });
+
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "breach.created.v1",
+    idempotencyKey: buildIdempotencyKey(["breach-created", incident.id]),
+    organizationId: input.organizationId,
+    payload: { actorId: actor.id, entityId: incident.id, entityType: "BreachIncident", organizationId: input.organizationId, resourceId: incident.id },
+    source: "platform",
   });
 
   await sendTransactionalEmail({
@@ -291,6 +323,15 @@ export async function createDataSubjectRequestAction(formData: FormData) {
     return created;
   });
 
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "dsr.created.v1",
+    idempotencyKey: buildIdempotencyKey(["dsr-created", request.id]),
+    organizationId: input.organizationId,
+    payload: { actorId: actor.id, entityId: request.id, entityType: "DataSubjectRequest", organizationId: input.organizationId, resourceId: request.id },
+    source: "platform",
+  });
+
   await sendTransactionalEmail({
     html: `<p>Zadanie osoby ${request.requestNumber} zostalo zapisane. Termin odpowiedzi: ${dueAt.toLocaleDateString("pl-PL")}.</p>`,
     subject: `PRIVAZY: zapisano zadanie osoby ${request.requestNumber}`,
@@ -356,11 +397,20 @@ export async function createClientMessageAction(formData: FormData) {
       tx,
     );
 
-    return savedThread;
+    return { message, thread: savedThread };
+  });
+
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "client.message.created.v1",
+    idempotencyKey: buildIdempotencyKey(["client-message", thread.message.id]),
+    organizationId: input.organizationId,
+    payload: { actorId: actor.id, entityId: thread.thread.id, entityType: "ClientMessageThread", messageId: thread.message.id, organizationId: input.organizationId, resourceId: thread.message.id, threadId: thread.thread.id },
+    source: "platform",
   });
 
   await sendTransactionalEmail({
-    html: `<p>Otrzymalismy wiadomosc w watku: <strong>${thread.subject}</strong>.</p>`,
+    html: `<p>Otrzymalismy wiadomosc w watku: <strong>${thread.thread.subject}</strong>.</p>`,
     subject: `PRIVAZY: otrzymalismy Twoja wiadomosc`,
     to: actor.email,
   });
@@ -402,6 +452,32 @@ export async function completeClientTaskAction(formData: FormData) {
       },
       tx,
     );
+  });
+
+  await emitEvent({
+    actorId: actor.id,
+    eventType: "client.task.completed.v1",
+    idempotencyKey: buildIdempotencyKey(["client-task-completed", task.id]),
+    organizationId: input.organizationId,
+    payload: { actorId: actor.id, entityId: task.id, entityType: "CrmTask", organizationId: input.organizationId, resourceId: task.id, taskId: task.id },
+    source: "platform",
+  });
+
+  revalidatePath("/platforma");
+}
+
+export async function markPortalNotificationReadAction(formData: FormData) {
+  const actor = await requirePlatformActor();
+  const input = notificationSchema.parse(formObject(formData));
+  await assertCanAccessOrganization(input.organizationId, actor);
+
+  await getPrisma().notification.updateMany({
+    data: { readAt: new Date(), status: "READ" },
+    where: {
+      channel: "PORTAL",
+      id: input.notificationId,
+      organizationId: input.organizationId,
+    },
   });
 
   revalidatePath("/platforma");

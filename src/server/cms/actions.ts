@@ -7,8 +7,10 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireCrmActor } from "@/server/crm/permissions";
+import { buildIdempotencyKey } from "@/server/automations/idempotency";
 import { getPrisma } from "@/server/db/prisma";
 import { assertCanEditCmsDraft, assertCanTransitionCms } from "@/server/cms/permissions";
+import { emitEvent } from "@/server/events/emit-event";
 
 const requiredText = z.string().trim().min(2).max(20_000);
 const optionalText = z.string().trim().max(4000).optional();
@@ -163,6 +165,16 @@ export async function saveCmsPostAction(formData: FormData) {
 
     return saved;
   });
+
+  if (post.status === "PUBLISHED") {
+    await emitEvent({
+      actorId: actor.id,
+      eventType: "blog.post.published.v1",
+      idempotencyKey: buildIdempotencyKey(["blog-published", post.id, post.publishedAt?.toISOString() ?? "now"]),
+      payload: { actorId: actor.id, blogPostId: post.id, entityId: post.id, entityType: "BlogPost", resourceId: post.id },
+      source: "cms",
+    });
+  }
 
   revalidatePath("/blog");
   revalidatePath(`/blog/${post.slug}`);

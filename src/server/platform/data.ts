@@ -286,6 +286,7 @@ export async function getClientPortalDashboard(organizationId: string) {
     urgentTasks,
     latestBreaches,
     latestRequests,
+    notifications,
     timeline,
   ] = await Promise.all([
     prisma.generatedDocument.count({ where: { organizationId } }),
@@ -361,6 +362,15 @@ export async function getClientPortalDashboard(organizationId: string) {
       take: 4,
       where: { organizationId },
     }),
+    prisma.notification.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      where: {
+        channel: "PORTAL",
+        organizationId,
+        status: "UNREAD",
+      },
+    }),
     prisma.clientTimelineEvent.findMany({
       include: { actor: { select: { email: true, name: true } } },
       orderBy: { createdAt: "desc" },
@@ -385,6 +395,7 @@ export async function getClientPortalDashboard(organizationId: string) {
       { href: "/platforma/wiadomosci", label: "Otwarte watki", tone: openMessagesCount > 0 ? "brand" as const : "neutral" as const, value: openMessagesCount },
       { href: "/platforma/zadania", label: "Zadania do domkniecia", tone: openTasksCount > 0 ? "warning" as const : "success" as const, value: openTasksCount },
     ],
+    notifications,
     timeline,
     urgentTasks,
   };

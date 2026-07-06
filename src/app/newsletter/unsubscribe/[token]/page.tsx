@@ -2,7 +2,9 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { buildIdempotencyKey } from "@/server/automations/idempotency";
 import { getPrisma } from "@/server/db/prisma";
+import { emitEvent } from "@/server/events/emit-event";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,6 +23,12 @@ export default async function NewsletterUnsubscribePage({ params }: { params: Pr
     });
     await prisma.newsletterEvent.create({
       data: { metadata: {}, subscriberId: subscriber.id, type: "UNSUBSCRIBED" },
+    });
+    await emitEvent({
+      eventType: "newsletter.unsubscribe.v1",
+      idempotencyKey: buildIdempotencyKey(["newsletter-unsubscribe", subscriber.id]),
+      payload: { resourceId: subscriber.id, subscriberId: subscriber.id },
+      source: "newsletter-unsubscribe",
     });
   }
 

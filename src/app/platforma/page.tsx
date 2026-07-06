@@ -25,6 +25,7 @@ import {
   toneForDate,
   toneForStatus,
 } from "@/server/platform/data";
+import { markPortalNotificationReadAction } from "@/server/platform/actions";
 import { resolvePlatformContext, type PlatformSearchParams } from "./platform-page";
 
 export const dynamic = "force-dynamic";
@@ -137,6 +138,38 @@ export default async function PlatformPage({ searchParams }: { searchParams: Pla
         </section>
 
         <aside className="grid gap-6">
+          <section className="grid gap-3">
+            <h2 className="text-lg font-bold">Powiadomienia</h2>
+            <div className="mt-4 grid gap-3">
+              {dashboard.notifications.length === 0 ? (
+                <ClientEmptyState title="Brak nowych powiadomien">Nowe informacje o dokumentach, zadaniach i wiadomosciach pojawia sie tutaj.</ClientEmptyState>
+              ) : (
+                dashboard.notifications.map((notification) => (
+                  <ClientRecordCard
+                    action={
+                      <form action={markPortalNotificationReadAction}>
+                        <input name="organizationId" type="hidden" value={organizationId} />
+                        <input name="notificationId" type="hidden" value={notification.id} />
+                        <Button size="sm" variant="ghost">Oznacz jako przeczytane</Button>
+                      </form>
+                    }
+                    key={notification.id}
+                    meta={
+                      <>
+                        <span>{formatDate(notification.createdAt)}</span>
+                        <span>{notification.type}</span>
+                      </>
+                    }
+                    status={<ClientStatusBadge status={notification.status} />}
+                    title={notification.title}
+                  >
+                    {notification.body}
+                  </ClientRecordCard>
+                ))
+              )}
+            </div>
+          </section>
+
           <section className="grid gap-3">
             <h2 className="text-lg font-bold">Ostatnie sprawy</h2>
             <div className="mt-4 grid gap-3">

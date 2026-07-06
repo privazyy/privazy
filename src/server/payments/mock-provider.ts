@@ -1,9 +1,8 @@
 import "server-only";
 
 import { getPrisma } from "@/server/db/prisma";
-import { paymentConfirmedEmail, paymentFailedEmail, sendTransactionalEmail } from "@/server/email/transactional";
-import { getInvoiceProvider } from "@/server/invoices";
-import { inngest } from "@/server/inngest/client";
+import { buildIdempotencyKey } from "@/server/automations/idempotency";
+import { emitEvent } from "@/server/events/emit-event";
 import type { CreatePaymentInput, PaymentProviderClient } from "@/server/payments/payment-provider";
 
 export class MockPaymentProvider implements PaymentProviderClient {
@@ -57,6 +56,25 @@ export class MockPaymentProvider implements PaymentProviderClient {
 
     const payload = (await request.json()) as { paymentId?: string; status?: string };
     if (!payload.paymentId) throw new Error("Brak paymentId.");
+    await getPrisma().webhookEvent.upsert({
+      create: {
+        eventType: "payment.mock",
+        externalEventId: `${payload.paymentId}:${payload.status ?? "paid"}`,
+        metadata: { paymentId: payload.paymentId, status: payload.status ?? "paid" },
+        provider: "MOCK",
+        status: "RECEIVED",
+      },
+      update: {
+        metadata: { paymentId: payload.paymentId, status: payload.status ?? "paid" },
+        status: "RECEIVED",
+      },
+      where: {
+        provider_externalEventId: {
+          externalEventId: `${payload.paymentId}:${payload.status ?? "paid"}`,
+          provider: "MOCK",
+        },
+      },
+    });
     if (payload.status === "failed") return markPaymentFailed(payload.paymentId);
     return markPaymentPaid(payload.paymentId);
   }
@@ -119,25 +137,18 @@ export async function markPaymentPaid(paymentId: string) {
     return order;
   });
 
-  await getInvoiceProvider().issueInvoice({ orderId: updated.id });
-  await inngest
-    .send({
-      data: {
-        orderId: updated.id,
-        orderItemIds: updated.items.map((item) => item.id),
-        orderNumber: updated.orderNumber,
-      },
-      name: "order/paid",
-    })
-    .catch((error) => {
-      console.error("order/paid event dispatch failed", error);
-    });
-  await sendTransactionalEmail({
-    to: updated.email,
-    ...paymentConfirmedEmail({
-      orderNumber: updated.orderNumber,
-      statusUrl: buildOrderStatusUrl(updated.orderNumber, updated.publicAccessToken),
-    }),
+  await emitEvent({
+    eventType: "order.payment.succeeded.v1",
+    idempotencyKey: buildIdempotencyKey(["payment-succeeded", payment.id]),
+    organizationId: updated.organizationId,
+    payload: {
+      orderId: updated.id,
+      orderItemIds: updated.items.map((item) => item.id),
+      organizationId: updated.organizationId,
+      paymentId: payment.id,
+      resourceId: payment.id,
+    },
+    source: "payment-provider",
   });
 
   return { orderNumber: updated.orderNumber, status: "PAID" } as const;
@@ -179,20 +190,18 @@ export async function markPaymentFailed(paymentId: string) {
     return failedOrder;
   });
 
-  await sendTransactionalEmail({
-    to: order.email,
-    ...paymentFailedEmail({
-      orderNumber: order.orderNumber,
-      statusUrl: buildOrderStatusUrl(order.orderNumber, order.publicAccessToken),
-    }),
-  }).catch((error) => {
-    console.error("Payment failed email failed", error);
+  await emitEvent({
+    eventType: "order.payment.failed.v1",
+    idempotencyKey: buildIdempotencyKey(["payment-failed", payment.id]),
+    organizationId: order.organizationId,
+    payload: {
+      orderId: order.id,
+      organizationId: order.organizationId,
+      paymentId: payment.id,
+      resourceId: payment.id,
+    },
+    source: "payment-provider",
   });
 
   return { orderNumber: order.orderNumber, status: "FAILED" } as const;
-}
-
-function buildOrderStatusUrl(orderNumber: string, token: string) {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  return `${baseUrl}/zamowienie/${orderNumber}?token=${encodeURIComponent(token)}`;
 }

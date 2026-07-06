@@ -5,7 +5,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { sendTransactionalEmail } from "@/server/email/transactional";
+import { buildIdempotencyKey } from "@/server/automations/idempotency";
 import { getPrisma } from "@/server/db/prisma";
+import { emitEvent } from "@/server/events/emit-event";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -81,6 +83,13 @@ export async function POST(request: NextRequest) {
     html: `<p>Dziekujemy za zapis do newslettera PRIVAZY.</p><p>Link wypisu zostal przygotowany w systemie: ${subscriber.unsubscribeToken}</p>`,
     subject: "PRIVAZY: zapis do newslettera",
     to: subscriber.email,
+  });
+
+  await emitEvent({
+    eventType: "newsletter.subscriber.created.v1",
+    idempotencyKey: buildIdempotencyKey(["newsletter-subscriber", subscriber.id]),
+    payload: { resourceId: subscriber.id, source: input.source, subscriberId: subscriber.id },
+    source: "newsletter-signup",
   });
 
   return NextResponse.json({ ok: true });

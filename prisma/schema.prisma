@@ -292,6 +292,55 @@ enum MarketingEventType {
   LEAD_FROM_ARTICLE
 }
 
+enum EventLogStatus {
+  PENDING
+  DISPATCHED
+  PROCESSED
+  FAILED
+  SKIPPED
+}
+
+enum AutomationRuleStatus {
+  ACTIVE
+  DISABLED
+  DRY_RUN
+}
+
+enum AutomationRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+  RETRY_PENDING
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum NotificationChannel {
+  CRM
+  PORTAL
+  EMAIL
+}
+
+enum EmailLogStatus {
+  QUEUED
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -331,6 +380,10 @@ model User {
   changedBlogRevisions BlogRevision[] @relation("BlogRevisionChangedBy")
   newsletterEvents NewsletterEvent[] @relation("NewsletterEventActor")
   marketingEvents MarketingEvent[] @relation("MarketingEventActor")
+  emittedEvents EventLog[] @relation("EventLogActor")
+  automationRuns AutomationRun[] @relation("AutomationRunActor")
+  notifications Notification[] @relation("NotificationUser")
+  createdAutomationRules AutomationRule[] @relation("AutomationRuleCreatedBy")
 }
 
 model Organization {
@@ -370,6 +423,12 @@ model Organization {
   clientTimelineEvents ClientTimelineEvent[]
   clientMessageThreads ClientMessageThread[]
   clientMessages ClientMessage[]
+  eventLogs EventLog[]
+  automationRules AutomationRule[]
+  automationRuns AutomationRun[]
+  notifications Notification[]
+  emailLogs EmailLog[]
+  webhookEvents WebhookEvent[]
 }
 
 model ClientProfile {
@@ -419,6 +478,7 @@ model DocumentGenerationJob {
   status         DocumentGenerationStatus @default(PENDING)
   inputSnapshot  Json
   errorMessage   String?
+  attempts       Int      @default(0)
   createdById    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1015,6 +1075,164 @@ model MarketingEvent {
   @@index([type])
   @@index([postId])
   @@index([actorId])
+  @@index([createdAt])
+}
+
+model EventLog {
+  id             String         @id @default(cuid())
+  eventType      String
+  version        String         @default("v1")
+  status         EventLogStatus @default(PENDING)
+  idempotencyKey String         @unique
+  payload        Json
+  organizationId String?
+  actorId        String?
+  source         String?
+  errorMessage   String?
+  dispatchedAt   DateTime?
+  processedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?         @relation("EventLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+  automationRuns AutomationRun[]
+
+  @@index([eventType])
+  @@index([status])
+  @@index([organizationId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+model AutomationRule {
+  id             String               @id @default(cuid())
+  key            String               @unique
+  name           String
+  description    String?
+  triggerEvent   String
+  ownerRole      UserRole
+  status         AutomationRuleStatus @default(ACTIVE)
+  critical       Boolean              @default(false)
+  maxAttempts    Int                  @default(3)
+  config         Json?
+  organizationId String?
+  createdById    String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("AutomationRuleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  runs         AutomationRun[]
+
+  @@index([triggerEvent])
+  @@index([status])
+  @@index([organizationId])
+}
+
+model AutomationRun {
+  id             String              @id @default(cuid())
+  ruleId         String?
+  eventLogId     String?
+  functionName   String
+  status         AutomationRunStatus @default(QUEUED)
+  idempotencyKey String              @unique
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3)
+  input          Json?
+  output         Json?
+  errorMessage   String?
+  organizationId String?
+  actorId        String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  nextRetryAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  rule         AutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  eventLog     EventLog?       @relation(fields: [eventLogId], references: [id], onDelete: SetNull)
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?           @relation("AutomationRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([ruleId])
+  @@index([eventLogId])
+  @@index([functionName])
+  @@index([status])
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id             String              @id @default(cuid())
+  userId         String?
+  organizationId String?
+  type           String
+  channel        NotificationChannel @default(CRM)
+  status         NotificationStatus  @default(UNREAD)
+  title          String
+  body           String?
+  entityType     String?
+  entityId       String?
+  metadata       Json?
+  readAt         DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  user         User?         @relation("NotificationUser", fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([channel])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model EmailLog {
+  id             String         @id @default(cuid())
+  recipient      String
+  template       String
+  status         EmailLogStatus @default(QUEUED)
+  providerId     String?
+  idempotencyKey String         @unique
+  subject        String
+  error          String?
+  organizationId String?
+  entityType     String?
+  entityId       String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([recipient])
+  @@index([template])
+  @@index([status])
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id              String             @id @default(cuid())
+  provider        String
+  externalEventId String
+  status          WebhookEventStatus @default(RECEIVED)
+  eventType       String?
+  metadata        Json?
+  organizationId  String?
+  errorMessage    String?
+  processedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalEventId])
+  @@index([provider])
+  @@index([status])
+  @@index([organizationId])
   @@index([createdAt])
 }
 

@@ -8,7 +8,8 @@ import { z } from "zod";
 import { calculateLine, sumBreakdowns } from "@/lib/shop/money";
 import type { PublicOrderView } from "@/lib/shop/types";
 import { getPrisma } from "@/server/db/prisma";
-import { orderConfirmationEmail, sendTransactionalEmail } from "@/server/email/transactional";
+import { buildIdempotencyKey } from "@/server/automations/idempotency";
+import { emitEvent } from "@/server/events/emit-event";
 import { getPaymentProvider } from "@/server/payments";
 
 export const checkoutPayloadSchema = z
@@ -232,14 +233,12 @@ export async function createCheckoutOrder(input: {
     publicAccessToken: checkout.publicAccessToken,
   });
 
-  await sendTransactionalEmail({
-    to: checkout.email,
-    ...orderConfirmationEmail({
-      orderNumber: checkout.orderNumber,
-      statusUrl: buildOrderStatusUrl(checkout.orderNumber, checkout.publicAccessToken),
-    }),
-  }).catch((error) => {
-    console.error("Order confirmation email failed", error);
+  await emitEvent({
+    eventType: "order.created.v1",
+    idempotencyKey: buildIdempotencyKey(["order-created", checkout.id]),
+    organizationId: checkout.organizationId,
+    payload: { orderId: checkout.id, organizationId: checkout.organizationId, resourceId: checkout.id },
+    source: "checkout",
   });
 
   return {
@@ -356,9 +355,4 @@ async function createOrderNumber(tx: Prisma.TransactionClient) {
 
 function createPublicAccessToken() {
   return randomBytes(32).toString("base64url");
-}
-
-function buildOrderStatusUrl(orderNumber: string, token: string) {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  return `${baseUrl}/zamowienie/${orderNumber}?token=${encodeURIComponent(token)}`;
 }
