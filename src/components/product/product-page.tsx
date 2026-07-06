@@ -21,11 +21,11 @@ import {
   Info,
   ListChecks,
   Lock,
+  Mail,
   RefreshCw,
   Scale,
   Shield,
   ShieldCheck,
-  ShoppingCart,
   Sparkles,
   X,
   Zap,
@@ -34,7 +34,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { IconButton } from "@/components/ui/icon-button";
 import { Logo } from "@/components/ui/logo";
 import {
   privacyPolicyProduct,
@@ -58,11 +57,10 @@ const galleryPages: Array<{ key: GalleryPageKey; label: string; icon: LucideIcon
 const trustIcons = [ShieldCheck, Scale, RefreshCw, Zap] as const;
 const stepIcons = [Building2, FileCog, ShieldCheck] as const;
 const bundleIcons = [FileText, FileDown, Code2, ListChecks] as const;
+const productContactHref = "mailto:kontakt@privazy.pl?subject=Polityka%20prywatnosci%20RODO";
 
 export function ProductPage() {
   const [activePage, setActivePage] = useState<GalleryPageKey>("cover");
-  const [cartCount, setCartCount] = useState(0);
-  const [added, setAdded] = useState(false);
   const [openFaq, setOpenFaq] = useState(0);
   const [showSticky, setShowSticky] = useState(false);
 
@@ -75,23 +73,16 @@ export function ProductPage() {
     return () => window.removeEventListener("scroll", updateSticky);
   }, []);
 
-  const addToCart = () => {
-    setCartCount((current) => current + 1);
-    setAdded(true);
-  };
-
   const scrollToContent = () => {
     document.getElementById("zawartosc")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[var(--surface-page)] pb-24 text-[var(--text-strong)] pvz-bleed-safe">
-      <ProductHeader cartCount={cartCount} onAdd={addToCart} />
+      <ProductHeader />
       <Breadcrumbs />
       <Hero
         activePage={activePage}
-        added={added}
-        onAdd={addToCart}
         onScrollToContent={scrollToContent}
         onSelectPage={setActivePage}
       />
@@ -101,14 +92,14 @@ export function ProductPage() {
       <ComparisonSection />
       <FaqSection openFaq={openFaq} onChange={setOpenFaq} />
       <SeoProse />
-      <CtaBand added={added} onAdd={addToCart} />
+      <CtaBand />
       <ProductFooter />
-      <StickyBuyBar added={added} show={showSticky} onAdd={addToCart} />
+      <StickyBuyBar show={showSticky} />
     </main>
   );
 }
 
-function ProductHeader({ cartCount, onAdd }: { cartCount: number; onAdd: () => void }) {
+function ProductHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--border-subtle)] bg-[var(--glass-bg)] backdrop-blur-md">
       <div className="mx-auto flex h-[68px] w-full max-w-[var(--container)] items-center gap-4 px-[var(--gutter)] min-[921px]:gap-8">
@@ -141,17 +132,14 @@ function ProductHeader({ cartCount, onAdd }: { cartCount: number; onAdd: () => v
           >
             Pomoc
           </a>
-          <Button type="button" size="sm" className="hidden min-[520px]:inline-flex" onClick={onAdd}>
-            Dodaj do koszyka
+          <Button asChild size="sm" className="hidden min-[520px]:inline-flex">
+            <a href={productContactHref}>Zapytaj o dokument</a>
           </Button>
-          <IconButton label={`Koszyk: ${cartCount} produktów`} className="relative shrink-0">
-            <ShoppingCart className="size-5" />
-            {cartCount > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-[var(--brand)] px-1.5 text-[11px] font-bold leading-5 text-white">
-                {cartCount}
-              </span>
-            )}
-          </IconButton>
+          <Button asChild size="icon" variant="outline" className="relative shrink-0" aria-label="Kontakt w sprawie dokumentu">
+            <a href={productContactHref}>
+              <Mail className="size-5" />
+            </a>
+          </Button>
         </div>
       </div>
     </header>
@@ -180,14 +168,10 @@ function Breadcrumbs() {
 
 function Hero({
   activePage,
-  added,
-  onAdd,
   onScrollToContent,
   onSelectPage,
 }: {
   activePage: GalleryPageKey;
-  added: boolean;
-  onAdd: () => void;
   onScrollToContent: () => void;
   onSelectPage: (page: GalleryPageKey) => void;
 }) {
@@ -195,7 +179,7 @@ function Hero({
     <section className="border-b border-[var(--border-subtle)] bg-white">
       <div className="grid items-start gap-10 py-10 min-[921px]:grid-cols-[0.96fr_1.04fr] min-[921px]:gap-14 min-[921px]:py-16 pvz-container">
         <ProductGallery activePage={activePage} onSelectPage={onSelectPage} />
-        <BuyPanel added={added} onAdd={onAdd} onScrollToContent={onScrollToContent} />
+        <BuyPanel onScrollToContent={onScrollToContent} />
       </div>
     </section>
   );
@@ -375,15 +359,7 @@ function SkeletonLine({
   );
 }
 
-function BuyPanel({
-  added,
-  onAdd,
-  onScrollToContent,
-}: {
-  added: boolean;
-  onAdd: () => void;
-  onScrollToContent: () => void;
-}) {
+function BuyPanel({ onScrollToContent }: { onScrollToContent: () => void }) {
   return (
     <div className="min-w-0 pt-1">
       <Badge tone="brand">
@@ -411,8 +387,10 @@ function BuyPanel({
         <p className="mt-2 text-sm text-[var(--text-muted)]">{privacyPolicyProduct.priceNote}</p>
 
         <div className="mt-5 grid max-w-[440px] gap-3">
-          <Button type="button" size="lg" className="w-full" onClick={onAdd}>
-            {added ? "W koszyku" : "Dodaj do koszyka"} <ShoppingCart className="size-5" />
+          <Button asChild size="lg" className="w-full">
+            <a href={productContactHref}>
+              Zapytaj o dokument <Mail className="size-5" />
+            </a>
           </Button>
           <Button type="button" size="lg" variant="soft" className="w-full" onClick={onScrollToContent}>
             Zobacz, co zawiera <ArrowRight className="size-5" />
@@ -442,7 +420,7 @@ function BuyPanel({
 
         <div className="mt-4 flex items-center gap-2 text-xs text-[var(--text-muted)]">
           <Lock className="size-3.5 shrink-0" />
-          {privacyPolicyProduct.paymentNote}
+          Checkout online uruchomimy w kolejnym etapie. Teraz zamówienie obsługujemy przez bezpieczny kontakt.
         </div>
       </div>
     </div>
@@ -736,7 +714,7 @@ function ProseBlock({ children, title }: { children: React.ReactNode; title: str
   );
 }
 
-function CtaBand({ added, onAdd }: { added: boolean; onAdd: () => void }) {
+function CtaBand() {
   return (
     <section className="bg-[var(--surface-page)] pb-[var(--section-y)]">
       <div className="pvz-container">
@@ -745,11 +723,13 @@ function CtaBand({ added, onAdd }: { added: boolean; onAdd: () => void }) {
             Wdroż politykę prywatności już dziś
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-white/90">
-            Dopasowany dokument, gotowy do pobrania w kilka minut. Z 14-dniową gwarancją zwrotu pieniędzy.
+            Dopasowany dokument przygotujemy przez kontakt z zespołem. Publiczny checkout online wróci dopiero po wdrożeniu koszyka i płatności.
           </p>
           <div className="mx-auto mt-7 max-w-sm">
-            <Button type="button" size="lg" variant="soft" className="w-full" onClick={onAdd}>
-              {added ? "Dodano do koszyka" : "Dodaj do koszyka"} - {privacyPolicyProduct.price} zł
+            <Button asChild size="lg" variant="soft" className="w-full">
+              <a href={productContactHref}>
+                Zapytaj o dokument - {privacyPolicyProduct.price} zł
+              </a>
             </Button>
           </div>
         </div>
@@ -828,7 +808,7 @@ function FooterColumn({ links, title }: { links: Array<{ href: string; label: st
   );
 }
 
-function StickyBuyBar({ added, onAdd, show }: { added: boolean; onAdd: () => void; show: boolean }) {
+function StickyBuyBar({ show }: { show: boolean }) {
   return (
     <div
       className={cn(
@@ -850,8 +830,8 @@ function StickyBuyBar({ added, onAdd, show }: { added: boolean; onAdd: () => voi
           <span className="font-display text-xl font-extrabold text-[var(--text-strong)]">{privacyPolicyProduct.price} zł</span>
           <span className="text-xs text-[var(--text-muted)]">netto</span>
         </div>
-        <Button type="button" size="sm" onClick={onAdd}>
-          {added ? "W koszyku" : "Dodaj"}
+        <Button asChild size="sm">
+          <a href={productContactHref}>Zapytaj</a>
         </Button>
       </div>
     </div>

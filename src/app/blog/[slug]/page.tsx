@@ -29,10 +29,14 @@ export async function generateMetadata({ params }: BlogArticleRouteProps): Promi
   return {
     title: `${article.title} - Blog PRIVAZY`,
     description: article.excerpt,
+    alternates: {
+      canonical: `/blog/${article.slug}`,
+    },
     openGraph: {
       title: article.title,
       description: article.excerpt,
       type: "article",
+      url: `/blog/${article.slug}`,
       publishedTime: article.date,
       authors: [article.author],
     },
