@@ -21,6 +21,18 @@ Rola `CLIENT` nie ma dostepu do `/admin`.
 
 Mapowanie znajduje sie w `src/server/crm/permissions.ts`.
 
+Plik eksportuje rowniez nazwane helpery wymagane przez workflow CRM:
+
+- `canReadCrm`
+- `canMutateCrm`
+- `canManageUsers`
+- `canReviewDocuments`
+- `canRetryDocumentJob`
+- `canAccessFinancials`
+- `canManageSettings`
+- `canHandleBreach`
+- `canHandleDataSubjectRequest`
+
 ## Mutacje
 
 | Zakres | ADMIN | LAWYER | OPERATOR | READ_ONLY |
@@ -38,6 +50,8 @@ Mapowanie znajduje sie w `src/server/crm/permissions.ts`.
 | `admin` | tak | nie | nie | nie |
 
 `*` Rola OPERATOR ma zakres operacyjny zamowien, ale reczna zmiana statusu zamowienia w `updateOrderStatusFromCrm` jest admin-only.
+
+Reczna zmiana statusu zamowienia wymaga komentarza `reason`, zapisywanego w audit logu.
 
 ## Zasady wymuszane w kodzie
 

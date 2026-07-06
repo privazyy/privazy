@@ -180,8 +180,40 @@ export function canAccessCrmRoute(role: UserRole, route: CrmRouteName) {
   return getAllowedCrmRoutes(role).includes(route);
 }
 
+export function canReadCrm(user: Pick<CrmActor, "role"> | { role: UserRole }) {
+  return crmRoles.includes(user.role);
+}
+
 export function canMutateCrm(actor: CrmActor, scope: CrmPermissionScope) {
   return mutationScopes[actor.role]?.includes(scope) ?? false;
+}
+
+export function canManageUsers(actor: CrmActor) {
+  return actor.role === "ADMIN";
+}
+
+export function canReviewDocuments(actor: CrmActor) {
+  return actor.role === "ADMIN" || actor.role === "LAWYER";
+}
+
+export function canRetryDocumentJob(actor: CrmActor) {
+  return actor.role === "ADMIN" || actor.role === "LAWYER" || actor.role === "OPERATOR";
+}
+
+export function canAccessFinancials(actor: CrmActor) {
+  return actor.role === "ADMIN" || actor.role === "OPERATOR" || actor.role === "READ_ONLY";
+}
+
+export function canManageSettings(actor: CrmActor) {
+  return actor.role === "ADMIN";
+}
+
+export function canHandleBreach(actor: CrmActor) {
+  return actor.role === "ADMIN" || actor.role === "LAWYER";
+}
+
+export function canHandleDataSubjectRequest(actor: CrmActor) {
+  return actor.role === "ADMIN" || actor.role === "LAWYER" || actor.role === "OPERATOR";
 }
 
 export function assertCanMutateCrm(actor: CrmActor, scope: CrmPermissionScope) {

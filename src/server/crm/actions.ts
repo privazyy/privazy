@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { inngest } from "@/server/inngest/client";
 import { writeCrmAudit } from "@/server/crm/audit";
-import { assertAdminCrm, assertCanMutateCrm, requireCrmActor } from "@/server/crm/permissions";
+import { assertAdminCrm, assertCanMutateCrm, canRetryDocumentJob, requireCrmActor } from "@/server/crm/permissions";
 import { getPrisma } from "@/server/db/prisma";
 
 const entitySchema = z.object({
@@ -44,6 +44,7 @@ const updateTaskStatusSchema = z.object({
 
 const updateOrderStatusSchema = z.object({
   orderId: z.string().min(1),
+  reason: z.string().trim().min(8).max(1000),
   status: z.enum(["PENDING_PAYMENT", "PAID", "PAYMENT_FAILED", "CANCELLED", "FULFILLING", "COMPLETED", "REFUNDED"]),
 });
 
@@ -236,7 +237,7 @@ export async function updateOrderStatusFromCrm(rawInput: unknown) {
     actor,
     entityId: order.id,
     entityType: "Order",
-    metadata: { status: input.status },
+    metadata: { reason: input.reason, status: input.status },
     organizationId: order.organizationId,
   });
   revalidatePath("/admin");
@@ -245,8 +246,22 @@ export async function updateOrderStatusFromCrm(rawInput: unknown) {
 
 export async function retryDocumentJobFromCrm(rawInput: unknown) {
   const actor = await requireCrmActor();
-  assertCanMutateCrm(actor, "documents");
+  if (!canRetryDocumentJob(actor)) {
+    throw new Error("Only ADMIN, LAWYER and OPERATOR can retry document jobs.");
+  }
   const input = retryJobSchema.parse(rawInput);
+
+  const currentJob = await getPrisma().documentGenerationJob.findUnique({
+    where: { id: input.jobId },
+  });
+
+  if (!currentJob) {
+    throw new Error("Document generation job not found.");
+  }
+
+  if (currentJob.status !== "FAILED") {
+    throw new Error("Only FAILED document jobs can be retried.");
+  }
 
   const job = await getPrisma().documentGenerationJob.update({
     data: {
@@ -261,6 +276,7 @@ export async function retryDocumentJobFromCrm(rawInput: unknown) {
     actor,
     entityId: job.id,
     entityType: "DocumentGenerationJob",
+    metadata: { previousStatus: currentJob.status },
     organizationId: job.organizationId,
   });
 

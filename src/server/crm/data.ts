@@ -497,7 +497,7 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
         "",
       ],
       primary: template.name,
-      secondary: template.fileKey,
+      secondary: "R2 key hidden",
       status: { label: status, tone: statusTone(status) },
     };
   });

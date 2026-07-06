@@ -12,6 +12,8 @@ Glowny widok:
 - `src/server/crm/actions.ts` - role-checked server actions.
 - `src/server/crm/permissions.ts` - routing i zakres mutacji per rola.
 - `src/server/crm/audit.ts` - wspolny zapis do `AuditLog` i `CrmActivity`.
+- `src/server/crm/queries/*` - eksport punktow wejscia dla odczytow CRM.
+- `src/server/crm/mutations/*` - eksport punktow wejscia dla mutacji CRM.
 
 ## Zrodla danych
 
@@ -51,8 +53,8 @@ Serwerowe akcje w `src/server/crm/actions.ts` maja Zod validation, auth, role ch
 - `createCrmNote`
 - `createCrmTask`
 - `updateCrmTaskStatus`
-- `updateOrderStatusFromCrm` - tylko ADMIN
-- `retryDocumentJobFromCrm`
+- `updateOrderStatusFromCrm` - tylko ADMIN i wymaga komentarza/reason
+- `retryDocumentJobFromCrm` - tylko failed jobs i tylko role wewnetrzne dokumentow
 - `updateGeneratedDocumentStatusFromCrm`
 - `updateBreachStatusFromCrm`
 - `updateDataSubjectRequestStatusFromCrm`
@@ -73,6 +75,8 @@ Metadane mutacji sa serializowane do JSON. Dla krytycznych operacji trzeba w kol
 - Granularny IAM per organizacja nie jest jeszcze wdrozony. Role CRM sa internal-global: po zalogowaniu zespol widzi wszystkie organizacje, zgodnie z aktualnym modelem operacyjnym.
 - Brakuje osobnych modeli dla kontaktow organizacji, zalacznikow, review komentarzy prawnika i historii pobran plikow.
 - Blog, newsletter i outsourcing IOD nie maja jeszcze dedykowanych tabel operacyjnych, wiec CRM pokazuje je jako puste moduly z jasnym komunikatem.
+- Moduly zalezne od Phase 6R, takie jak `DocumentInput`, `GeneratedDocumentFile`, `DocumentDownload` i `DocumentReview`, sa traktowane jako zaleznosc, jesli nie sa jeszcze w bazowym `main`.
+- CRM nie pokazuje raw `fileKey`; klucze R2 pozostaja server-side.
 - Zwroty platnosci sa przygotowane w providerze platnosci jako niezaimplementowany flow.
 - Supabase Data API / GraphQL exposure musi byc sprawdzone przed produkcja. Nowe tabele Prisma w public schema nie powinny byc traktowane jako publiczne API bez jawnego RLS i ekspozycji.
 

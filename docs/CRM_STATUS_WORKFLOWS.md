@@ -53,10 +53,10 @@ Enum `CrmTaskStatus`:
 
 Akcje:
 
-- `retryDocumentJobFromCrm` resetuje failed job do `PENDING`, czysci `errorMessage`, wysyla event `document/generate.requested` i zapisuje audit.
+- `retryDocumentJobFromCrm` resetuje tylko job ze statusem `FAILED` do `PENDING`, czysci `errorMessage`, wysyla event `document/generate.requested` i zapisuje audit.
 - `updateGeneratedDocumentStatusFromCrm` zmienia status dokumentu i zapisuje audit.
 
-Review prawnika, komentarze review, reject reason i historia pobran wymagaja dedykowanych modeli w kolejnej fazie.
+Review prawnika, komentarze review, reject reason i historia pobran wymagaja dedykowanych modeli Phase 6R (`DocumentInput`, `GeneratedDocumentFile`, `DocumentDownload`, `DocumentReview`), jezeli nie sa jeszcze dostepne w bazowym `main`.
 
 ## Zamowienia
 
@@ -70,7 +70,7 @@ Review prawnika, komentarze review, reject reason i historia pobran wymagaja ded
 - `COMPLETED`
 - `REFUNDED`
 
-`updateOrderStatusFromCrm` jest dostepne tylko dla ADMIN. OPERATOR moze pracowac na module zamowien, ale nie ma prawa do recznej zmiany statusu.
+`updateOrderStatusFromCrm` jest dostepne tylko dla ADMIN i wymaga komentarza `reason`. OPERATOR moze pracowac na module zamowien, ale nie ma prawa do recznej zmiany statusu.
 
 Zwroty i anulowania wymagaja integracji z providerem platnosci. Obecny mock provider zwraca refund jako niezaimplementowany flow.
 
