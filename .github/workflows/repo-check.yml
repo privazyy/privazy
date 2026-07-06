@@ -40,14 +40,32 @@ jobs:
             exit 1
           fi
 
+      - name: Validate environment contract
+        run: npm run env:check
+
       - name: Generate Prisma client
         run: npm run prisma:generate
+
+      - name: Validate Prisma schema
+        run: npm run prisma:validate
 
       - name: Lint
         run: npm run lint
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Permission tests
+        run: npm run test:permissions
+
+      - name: Security tests
+        run: npm run test:security
 
       - name: Build
         run: npm run build
