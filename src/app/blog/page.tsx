@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 
 import { BlogFooter, BlogHeader } from "@/components/blog/blog-chrome";
 import { BlogIndexClient } from "@/components/blog/blog-index-client";
-import { blogArticles } from "@/lib/blog";
+import { listPublicBlogArticles } from "@/server/blog/data";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const metadata: Metadata = {
   title: "Blog PRIVAZY - RODO, IOD i ochrona danych",
@@ -10,11 +13,13 @@ export const metadata: Metadata = {
     "Praktyczne artykuły o RODO, obowiązku IOD, dokumentacji ochrony danych i zmianach w prawie dla firm.",
 };
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const articles = await listPublicBlogArticles();
+
   return (
     <main className="min-h-screen overflow-x-clip bg-slate-50 text-slate-950">
       <BlogHeader />
-      <BlogIndexClient articles={blogArticles} />
+      <BlogIndexClient articles={articles} />
       <BlogFooter />
     </main>
   );
