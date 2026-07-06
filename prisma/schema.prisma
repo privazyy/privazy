@@ -249,6 +249,49 @@ enum ClientTimelineEventType {
   SYSTEM
 }
 
+enum BlogPostStatus {
+  DRAFT
+  IN_REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BlogCtaType {
+  CHECK_IOD
+  SHOP_PRODUCT
+  SERVICE_CONTACT
+  NEWSLETTER
+  CONSULTATION
+  RELATED_ARTICLE
+  NONE
+}
+
+enum NewsletterSubscriberStatus {
+  PENDING
+  ACTIVE
+  UNSUBSCRIBED
+  BOUNCED
+  COMPLAINED
+}
+
+enum NewsletterEventType {
+  SIGNUP
+  CONFIRMATION_SENT
+  CONFIRMED
+  UNSUBSCRIBED
+  CONSENT_UPDATED
+}
+
+enum MarketingEventType {
+  ARTICLE_VIEW
+  CTA_CLICK
+  NEWSLETTER_SIGNUP
+  CHECKER_START_FROM_ARTICLE
+  PRODUCT_CLICK_FROM_ARTICLE
+  LEAD_FROM_ARTICLE
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -283,6 +326,11 @@ model User {
   clientTimelineEvents ClientTimelineEvent[] @relation("ClientTimelineActor")
   createdClientMessageThreads ClientMessageThread[] @relation("ClientMessageThreadCreatedBy")
   clientMessages ClientMessage[] @relation("ClientMessageSender")
+  authoredBlogPosts BlogPost[] @relation("BlogPostAuthor")
+  reviewedBlogPosts BlogPost[] @relation("BlogPostReviewer")
+  changedBlogRevisions BlogRevision[] @relation("BlogRevisionChangedBy")
+  newsletterEvents NewsletterEvent[] @relation("NewsletterEventActor")
+  marketingEvents MarketingEvent[] @relation("MarketingEventActor")
 }
 
 model Organization {
@@ -755,6 +803,221 @@ model ClientMessage {
   @@index([createdAt])
 }
 
+model BlogCategory {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  seoTitle        String?
+  metaDescription String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  posts BlogPost[]
+
+  @@index([slug])
+}
+
+model BlogTag {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts BlogPostTag[]
+
+  @@index([slug])
+}
+
+model BlogPost {
+  id              String         @id @default(cuid())
+  title           String
+  slug            String         @unique
+  excerpt         String
+  content         String
+  status          BlogPostStatus @default(DRAFT)
+  categoryId      String
+  authorId        String?
+  reviewerId      String?
+  publishedAt     DateTime?
+  scheduledAt     DateTime?
+  archivedAt      DateTime?
+  seoTitle        String?
+  metaDescription String
+  canonicalUrl    String?
+  ogTitle         String?
+  ogDescription   String?
+  ogImage         String?
+  readingTime     Int           @default(5)
+  legalDisclaimer String
+  ctaType         BlogCtaType    @default(CHECK_IOD)
+  source          String         @default("cms")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  category BlogCategory @relation(fields: [categoryId], references: [id])
+  author   User?        @relation("BlogPostAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  reviewer User?        @relation("BlogPostReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  tags     BlogPostTag[]
+  revisions BlogRevision[]
+  faqItems BlogFaqItem[]
+  ctas BlogCta[]
+  relatedProducts BlogRelatedProduct[]
+  relatedServices BlogRelatedService[]
+  marketingEvents MarketingEvent[]
+
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([reviewerId])
+  @@index([status, publishedAt])
+  @@index([scheduledAt])
+}
+
+model BlogPostTag {
+  postId String
+  tagId  String
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+model BlogRevision {
+  id            String   @id @default(cuid())
+  postId        String
+  changedById   String?
+  action        String
+  changeSummary String?
+  snapshot      Json
+  createdAt     DateTime @default(now())
+
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  changedBy User?    @relation("BlogRevisionChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([postId])
+  @@index([changedById])
+  @@index([createdAt])
+}
+
+model BlogFaqItem {
+  id        String   @id @default(cuid())
+  postId    String
+  question  String
+  answer    String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model BlogCta {
+  id        String      @id @default(cuid())
+  postId    String
+  type      BlogCtaType
+  label     String
+  href      String
+  position  Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([type])
+}
+
+model BlogRelatedProduct {
+  postId    String
+  productId String
+  position  Int @default(0)
+
+  post    BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([postId, productId])
+  @@index([productId])
+}
+
+model BlogRelatedService {
+  id        String   @id @default(cuid())
+  postId    String
+  label     String
+  href      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model NewsletterSubscriber {
+  id               String                     @id @default(cuid())
+  email            String                     @unique
+  status           NewsletterSubscriberStatus @default(PENDING)
+  source           String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  consentText      String
+  consentAt        DateTime
+  unsubscribeToken String                     @unique
+  confirmedAt      DateTime?
+  unsubscribedAt   DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  events NewsletterEvent[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model NewsletterEvent {
+  id           String              @id @default(cuid())
+  subscriberId String
+  actorId      String?
+  type         NewsletterEventType
+  metadata     Json
+  createdAt    DateTime            @default(now())
+
+  subscriber NewsletterSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  actor      User?                @relation("NewsletterEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([subscriberId])
+  @@index([actorId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model MarketingEvent {
+  id             String             @id @default(cuid())
+  type           MarketingEventType
+  postId         String?
+  actorId        String?
+  source         String?
+  referrer       String?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  metadata       Json
+  createdAt      DateTime           @default(now())
+
+  post  BlogPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
+  actor User?     @relation("MarketingEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([postId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
 model Product {
   id               String        @id @default(cuid())
   name             String
@@ -776,6 +1039,7 @@ model Product {
   variants ProductVariant[]
   cartItems CartItem[]
   orderItems OrderItem[]
+  relatedBlogPosts BlogRelatedProduct[]
 
   @@index([status])
   @@index([productType])

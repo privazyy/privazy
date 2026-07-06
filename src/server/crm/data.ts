@@ -212,6 +212,9 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
     breaches,
     dataSubjectRequests,
     auditLogs,
+    blogPosts,
+    newsletterSubscribers,
+    marketingEvents,
     counts,
   ] = await Promise.all([
     listIodCrmLeads(100),
@@ -338,6 +341,25 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       include: { organization: true, user: true },
       orderBy: { createdAt: "desc" },
       take: 100,
+    }),
+    prisma.blogPost.findMany({
+      include: {
+        author: true,
+        category: true,
+        reviewer: true,
+        _count: { select: { revisions: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    }),
+    prisma.newsletterSubscriber.findMany({
+      include: { events: { orderBy: { createdAt: "desc" }, take: 1 } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.marketingEvent.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 200,
     }),
     getCounts(),
   ]);
@@ -629,6 +651,42 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
     status: { label: "Zapisany", tone: "success" },
   }));
 
+  const blogRows: TableRow[] = blogPosts.map((post) => ({
+    actionRoute: "blog-editor",
+    cells: [
+      post.status,
+      post.author?.name ?? post.author?.email ?? "System",
+      post.category.name,
+      post.reviewer?.name ?? post.reviewer?.email ?? "Brak",
+      String(post._count.revisions),
+      post.publishedAt ? formatDate(post.publishedAt) : post.scheduledAt ? formatDate(post.scheduledAt) : "-",
+      "",
+    ],
+    primary: post.title,
+    secondary: `/blog/${post.slug}`,
+    status: {
+      label: post.status,
+      tone: post.status === "PUBLISHED" ? "success" : post.status === "IN_REVIEW" || post.status === "SCHEDULED" ? "warning" : "neutral",
+    },
+  }));
+
+  const newsletterRows: TableRow[] = newsletterSubscribers.map((subscriber) => ({
+    cells: [
+      subscriber.status,
+      subscriber.source ?? "-",
+      subscriber.utmCampaign ?? "-",
+      formatDate(subscriber.consentAt),
+      subscriber.events[0]?.type ?? "SIGNUP",
+      "",
+    ],
+    primary: subscriber.email,
+    secondary: `Token wypisu: ${subscriber.unsubscribeToken.slice(0, 8)}...`,
+    status: {
+      label: subscriber.status,
+      tone: subscriber.status === "ACTIVE" ? "success" : subscriber.status === "UNSUBSCRIBED" ? "neutral" : "warning",
+    },
+  }));
+
   const userRows: TableRow[] = users.map((user) => {
     const role = roleLabels[user.role];
 
@@ -698,13 +756,21 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       subtitle: "Faktury i platnosci z modeli Invoice oraz Payment.",
       title: "Ksiegowosc",
     },
-    blog: emptyListModule({
+    blog: {
       action: "Nowy artykul",
-      columns: ["Artykul", "Status", "Autor", "SEO", "Ruch", "Leady", ""],
+      columns: ["Artykul", "Status", "Autor", "Kategoria", "Reviewer", "Rewizje", "Publikacja", ""],
+      emptyMessage: "Brak wpisow CMS. Uzyj seeda migracyjnego albo utworz pierwszy draft.",
       icon: "Newspaper",
+      kpis: [
+        { icon: "Newspaper", label: "Wpisy", value: String(counts.blogPosts), tone: "brand" },
+        { icon: "FileClock", label: "Do review", value: String(blogPosts.filter((post) => post.status === "IN_REVIEW").length), tone: "warning" },
+        { icon: "BadgeCheck", label: "Opublikowane", value: String(blogPosts.filter((post) => post.status === "PUBLISHED").length), tone: "success" },
+        { icon: "MousePointerClick", label: "Eventy", value: String(marketingEvents.length), tone: "neutral" },
+      ],
+      rows: blogRows,
       title: "Baza wiedzy / Blog",
-      subtitle: "Blog jest nadal zrodlem kodowym, bez tabeli CRM do edycji tresci.",
-    }),
+      subtitle: "CMS bloga z workflow draft, review, scheduled, published i archived.",
+    },
     breaches: {
       action: "Dodaj naruszenie",
       columns: ["Nr sprawy", "Klient", "Odpowiedzialny", "Status", "Ryzyko", "Termin 72h", "Zamknieto", ""],
@@ -765,13 +831,21 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       subtitle: "Leady CRM oraz leady IOD z formularza checkera.",
       title: "Leady",
     },
-    newsletter: emptyListModule({
-      action: "Nowa kampania",
-      columns: ["Lista / kampania", "Segment", "Status", "Odbiorcy", "Open rate", ""],
+    newsletter: {
+      action: "Podglad listy",
+      columns: ["Subskrybent", "Status", "Zrodlo", "Kampania", "Zgoda", "Ostatni event", ""],
+      emptyMessage: "Brak subskrybentow newslettera.",
       icon: "Mail",
+      kpis: [
+        { icon: "Mail", label: "Subskrybenci", value: String(counts.newsletterSubscribers), tone: "brand" },
+        { icon: "BadgeCheck", label: "Aktywni", value: String(newsletterSubscribers.filter((item) => item.status === "ACTIVE").length), tone: "success" },
+        { icon: "Clock", label: "Pending", value: String(newsletterSubscribers.filter((item) => item.status === "PENDING").length), tone: "warning" },
+        { icon: "Activity", label: "Marketing events", value: String(counts.marketingEvents), tone: "neutral" },
+      ],
+      rows: newsletterRows,
       title: "Newsletter",
-      subtitle: "Brak tabel newslettera i kampanii w aktualnym schemacie.",
-    }),
+      subtitle: "Foundation newslettera: zgody, statusy, token wypisu i eventy bez kampanii masowych.",
+    },
     outsourcing: emptyListModule({
       action: "Dodaj abonament",
       columns: ["Klient", "Pakiet", "Przypisany IOD", "Status", "SLA", "Incydenty", "Zadania", "Przeglad", "Oplata", ""],
@@ -1174,6 +1248,9 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       breachIncidentsCount,
       dataSubjectRequestsCount,
       auditLogsCount,
+      blogPostsCount,
+      newsletterSubscribersCount,
+      marketingEventsCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
@@ -1195,10 +1272,14 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       prisma.breachIncident.count(),
       prisma.dataSubjectRequest.count(),
       prisma.auditLog.count(),
+      prisma.blogPost.count(),
+      prisma.newsletterSubscriber.count(),
+      prisma.marketingEvent.count(),
     ]);
 
     return {
       auditLogs: auditLogsCount,
+      blogPosts: blogPostsCount,
       breachIncidents: breachIncidentsCount,
       clientProfiles,
       crmActivities: crmActivitiesCount,
@@ -1212,6 +1293,8 @@ export async function getCrmDatabaseData(actor: CrmActor): Promise<CrmDatabaseDa
       generatedDocuments: generatedDocumentsCount,
       generationJobs,
       invoices: invoicesCount,
+      marketingEvents: marketingEventsCount,
+      newsletterSubscribers: newsletterSubscribersCount,
       orders: ordersCount,
       payments: paymentsCount,
       products: productsCount,

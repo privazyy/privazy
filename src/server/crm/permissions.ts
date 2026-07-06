@@ -85,6 +85,9 @@ const roleRoutes: Record<UserRole, CrmRouteName[]> = {
     "tasks",
     "calendar",
     "reports",
+    "blog",
+    "blog-editor",
+    "newsletter",
     "platform",
   ],
   OPERATOR: [
@@ -105,6 +108,9 @@ const roleRoutes: Record<UserRole, CrmRouteName[]> = {
     "calendar",
     "reports",
     "accounting",
+    "blog",
+    "blog-editor",
+    "newsletter",
     "platform",
   ],
   READ_ONLY: [

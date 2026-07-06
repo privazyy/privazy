@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "responsive:check": "node scripts/check-responsive.mjs",
+    "cms:seed-blog": "node scripts/seed-blog-cms.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",

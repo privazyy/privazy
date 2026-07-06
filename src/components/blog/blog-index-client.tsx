@@ -98,6 +98,7 @@ export function BlogIndexClient({ articles }: { articles: BlogArticle[] }) {
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
   const [query, setQuery] = useState("");
   const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterConsent, setNewsletterConsent] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
 
   const filteredArticles = useMemo(() => {
@@ -131,9 +132,21 @@ export function BlogIndexClient({ articles }: { articles: BlogArticle[] }) {
     });
   }, [articles, query]);
 
-  const handleNewsletter = (event: FormEvent<HTMLFormElement>) => {
+  const handleNewsletter = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (newsletterEmail.trim()) setSubscribed(true);
+    if (!newsletterEmail.trim() || !newsletterConsent) return;
+
+    const response = await fetch("/api/newsletter/signup", {
+      body: JSON.stringify({
+        consent: newsletterConsent,
+        email: newsletterEmail,
+        source: "blog_index",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+
+    if (response.ok) setSubscribed(true);
   };
 
   const clearFilters = () => {
@@ -272,7 +285,7 @@ export function BlogIndexClient({ articles }: { articles: BlogArticle[] }) {
         )}
       </section>
 
-      <section className="pb-14 lg:pb-24 pvz-container">
+      <section className="pb-14 lg:pb-24 pvz-container" id="newsletter">
         <div className="relative grid gap-8 overflow-hidden rounded-3xl p-6 text-white shadow-lg md:grid-cols-2 md:p-10 lg:p-14" style={newsletterBackground}>
           <div className="relative">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
@@ -306,6 +319,16 @@ export function BlogIndexClient({ articles }: { articles: BlogArticle[] }) {
                   placeholder="Twój adres e-mail"
                   className="h-12 border-0 bg-white"
                 />
+                <label className="flex items-start gap-2 rounded-2xl bg-white/10 p-3 text-left text-xs leading-5 text-white/80">
+                  <input
+                    checked={newsletterConsent}
+                    className="mt-1"
+                    onChange={(event) => setNewsletterConsent(event.target.checked)}
+                    required
+                    type="checkbox"
+                  />
+                  <span>Zgadzam sie na otrzymywanie newslettera PRIVAZY z tresciami edukacyjnymi i marketingowymi.</span>
+                </label>
                 <Button type="submit" size="lg" className="bg-slate-950 hover:bg-black">
                   Zapisz się <ArrowRight className="size-5" />
                 </Button>
