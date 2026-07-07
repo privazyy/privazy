@@ -9,6 +9,7 @@ These may be exposed to browser/client code.
 | `NEXT_PUBLIC_SITE_URL` | Local or deployed app URL. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous public key. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public Cloudflare Turnstile site key used by public lead forms. |
 | `NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY` | Public Cloudflare Turnstile site key, if used. |
 
 ## Server Secrets
@@ -42,6 +43,9 @@ These must not be exposed to browser/client code.
 | `CLOUDFLARE_R2_ACCESS_KEY_ID` | Cloudflare R2 S3-compatible access key ID. |
 | `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | Cloudflare R2 S3-compatible secret access key. |
 | `CLOUDFLARE_KV_NAMESPACE_ID` | Cloudflare KV namespace ID, if used. |
+| `TURNSTILE_SECRET_KEY` | Server-side Cloudflare Turnstile secret key for public form verification. |
+| `TURNSTILE_BYPASS_IN_DEV` | Set to `true` only in local non-production development to bypass Turnstile. |
+| `ABUSE_LOG_HASH_SALT` | Server-only salt for hashed IP markers in abuse logs. |
 | `CLOUDFLARE_TURNSTILE_SECRET_KEY` | Server-side Cloudflare Turnstile secret key. |
 
 ## Notes

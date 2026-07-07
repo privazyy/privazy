@@ -1,73 +1,27 @@
 import "server-only";
 
 import { Prisma, type FormSubmission, type Organization } from "@prisma/client";
-import { z } from "zod";
 
 import {
-  calculateIodAssessment,
-  calculateIodResult,
-  iodScaleLabels,
-  iodSectorLabels,
+  isHotComplianceLead,
+  mapIodObligationStatusToResultLevel,
+  mapLandingAnswersToObligationInput,
   resultLabelForComplianceStatus,
-  type IodCheckerAnswers,
   type IodResultLevel,
 } from "@/lib/iod-checker";
 import type { IodObligationOutput, IodObligationStatus } from "@/lib/iod-obligation-checker";
+import { evaluateIodObligation } from "@/lib/iod-obligation-checker";
 import { getPrisma } from "@/server/db/prisma";
+import { type IodLeadPayload, iodLeadPayloadSchema } from "@/server/leads/iod-schema";
+import type { PublicRequestMetadata } from "@/server/security/request-metadata";
 
 export const IOD_LEAD_FORM_TYPE = "iod_checker_lead";
+const DEDUPE_WINDOW_MS = 60 * 60 * 1000;
 
-const optionalText = (max = 160) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .optional()
-    .transform((value) => (value ? value : undefined));
-
-export const iodLeadPayloadSchema = z.object({
-  answers: z.object({
-    publiczny: z.enum(["tak", "nie"]),
-    branza: z.enum(["zdrowie", "finanse", "ecommerce", "it", "marketing", "edukacja", "publiczny", "inne"]),
-    monitoring: z.enum(["tak", "nie", "nie_wiem"]),
-    wrazliwe: z.enum(["tak", "nie", "nie_wiem"]),
-    skala: z.enum(["s", "m", "l", "xl"]),
-    iod: z.enum(["tak", "nie", "nie_wiem"]),
-  }),
-  contact: z.object({
-    company: z.string().trim().min(2).max(160),
-    nip: optionalText(24),
-    employees: optionalText(48),
-    name: z.string().trim().min(2).max(120),
-    email: z.email().max(180),
-    phone: z.string().trim().min(6).max(48),
-    privacyConsent: z.boolean().refine((value) => value, "Privacy consent is required"),
-    marketingConsent: z.boolean().optional().default(false),
-  }),
-  source: z
-    .object({
-      page: optionalText(80),
-      placement: optionalText(80),
-      campaign: optionalText(120),
-    })
-    .optional(),
-});
-
-export type IodLeadPayload = z.infer<typeof iodLeadPayloadSchema>;
-
-export type RequestLeadMeta = {
-  ipAddress?: string;
-  referrer?: string;
-  userAgent?: string;
-};
+export { iodLeadPayloadSchema };
 
 type IodLeadSubmissionData = {
-  answers: IodCheckerAnswers;
-  labels: {
-    branza: string;
-    skala: string;
-  };
-  result: ReturnType<typeof calculateIodResult>;
+  answers: Record<string, string>;
   complianceResult: IodObligationOutput;
   contact: IodLeadPayload["contact"];
   consents: {
@@ -75,10 +29,14 @@ type IodLeadSubmissionData = {
     marketing: boolean;
   };
   source: {
+    campaign?: string;
     page?: string;
     placement?: string;
-    campaign?: string;
-  } & RequestLeadMeta;
+    referrer?: string;
+    utmCampaign?: string;
+    utmMedium?: string;
+    utmSource?: string;
+  } & PublicRequestMetadata;
   lead: {
     source: string;
     stage: "Nowy";
@@ -88,35 +46,58 @@ type IodLeadSubmissionData = {
   };
   submittedAt: string;
   formVersion: string;
+  result?: {
+    level: IodResultLevel;
+    leadValue: number;
+    hot: boolean;
+  };
+  labels?: {
+    branza?: string;
+  };
 };
 
 type SubmissionWithOrganization = FormSubmission & {
   organization: Organization;
 };
 
+export type RequestLeadMeta = PublicRequestMetadata;
+
 export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMeta) {
   const prisma = getPrisma();
-  const complianceResult = calculateIodAssessment(payload.answers, payload.contact.company);
-  const result = calculateIodResult(payload.answers, complianceResult);
+  const complianceResult = evaluateIodObligation(mapLandingAnswersToObligationInput(payload.answers, payload.contact.company));
+  const result = buildLeadResult(complianceResult);
   const owner = pickLeadOwner(result.level);
+  const dedupeCutoff = new Date(Date.now() - DEDUPE_WINDOW_MS);
+  const email = payload.contact.email.toLowerCase();
+
+  const existingSubmission = await prisma.formSubmission.findFirst({
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+    where: {
+      createdAt: { gte: dedupeCutoff },
+      data: {
+        path: ["contact", "email"],
+        equals: email,
+      },
+      formType: IOD_LEAD_FORM_TYPE,
+    },
+  });
+
+  if (existingSubmission) {
+    return { created: false };
+  }
 
   const created = await prisma.$transaction(async (tx) => {
     const organization = await tx.organization.create({
       data: {
         name: payload.contact.company,
-        nip: payload.contact.nip,
-        email: payload.contact.email,
+        email,
         phone: payload.contact.phone,
       },
     });
 
     const submissionData: IodLeadSubmissionData = {
       answers: payload.answers,
-      labels: {
-        branza: iodSectorLabels[payload.answers.branza],
-        skala: iodScaleLabels[payload.answers.skala],
-      },
-      result,
       complianceResult,
       contact: payload.contact,
       consents: {
@@ -151,8 +132,9 @@ export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMe
   });
 
   return {
-    leadId: created.submission.id,
-    organizationId: created.organization.id,
+    created: true,
+    internalLeadId: created.submission.id,
+    internalOrganizationId: created.organization.id,
     result,
     complianceResult,
   };
@@ -190,7 +172,7 @@ export function mapSubmissionToCrmLead(submission: SubmissionWithOrganization) {
   return {
     id: submission.id,
     company: submission.organization.name,
-    industry: data.labels?.branza ?? "Nie wskazano",
+    industry: data.labels?.branza ?? data.answers?.branza ?? "Nie wskazano",
     source: data.lead?.source ?? "Landing / Checker IOD",
     resultLabel: resultLabelForComplianceStatus(complianceStatus) ?? (hot ? "IOD wymagany" : "Do weryfikacji"),
     value,
@@ -198,6 +180,17 @@ export function mapSubmissionToCrmLead(submission: SubmissionWithOrganization) {
     owner,
     lastActivity: formatRelativeActivity(submission.createdAt),
     hot,
+  };
+}
+
+function buildLeadResult(assessment: IodObligationOutput) {
+  const level = mapIodObligationStatusToResultLevel(assessment.obligation_status);
+  const leadValue = estimateLeadValue(Math.min(assessment.scale_result.score, 8), level);
+
+  return {
+    hot: isHotComplianceLead(assessment),
+    leadValue,
+    level,
   };
 }
 
@@ -222,6 +215,10 @@ function estimateFallbackValue(level: IodResultLevel) {
   if (level === "required") return 8900;
   if (level === "verification") return 5900;
   return 2900;
+}
+
+function estimateLeadValue(score: number, level: IodResultLevel) {
+  return estimateFallbackValue(level) + Math.min(score, 8) * 500;
 }
 
 function toJsonObject(value: IodLeadSubmissionData) {
