@@ -85,6 +85,7 @@ Install dependencies and generate the Prisma client:
 
 ```bash
 npm install
+npm run env:check
 npm run prisma:generate
 ```
 
@@ -103,6 +104,7 @@ npm run dev
 Run local verification before UI handoff:
 
 ```bash
+npm run env:check
 npm run lint
 npm run typecheck
 npm run build
@@ -110,3 +112,20 @@ npm run responsive:check
 ```
 
 `npm run responsive:check` expects the app to be available at `http://localhost:3000`. The responsive rules live in [RESPONSIVE.md](RESPONSIVE.md).
+
+## 7. Staging / production readiness
+
+Use the environment-specific checks before any deployed validation:
+
+```bash
+npm run env:check:staging
+npm run env:check:production
+```
+
+These checks intentionally fail when real staging or production secrets are not present. Do not treat checklist documents as proof that staging or production has been verified. See:
+
+- [ENVIRONMENT.md](ENVIRONMENT.md)
+- [ENV_INVENTORY.md](ENV_INVENTORY.md)
+- [STAGING_READINESS_CHECKLIST.md](STAGING_READINESS_CHECKLIST.md)
+- [PRISMA_MIGRATION_READINESS.md](PRISMA_MIGRATION_READINESS.md)
+- [SUPABASE_READINESS_CHECKLIST.md](SUPABASE_READINESS_CHECKLIST.md)

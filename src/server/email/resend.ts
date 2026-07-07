@@ -1,5 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
+import { ConfigurationError } from "@/server/env/errors";
 
 let resend: Resend | null = null;
 
@@ -8,7 +9,7 @@ function getResend() {
     const apiKey = process.env.RESEND_API_KEY;
 
     if (!apiKey) {
-      throw new Error("Missing environment variable: RESEND_API_KEY");
+      throw new ConfigurationError("Email runtime configuration is incomplete.", ["RESEND_API_KEY"]);
     }
 
     resend = new Resend(apiKey);
@@ -25,7 +26,7 @@ export async function sendDocumentsReadyEmail(input: {
   const from = process.env.RESEND_FROM;
 
   if (!from) {
-    throw new Error("Missing environment variable: RESEND_FROM");
+    throw new ConfigurationError("Email runtime configuration is incomplete.", ["RESEND_FROM"]);
   }
 
   return getResend().emails.send({

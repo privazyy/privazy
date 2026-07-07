@@ -9,6 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "responsive:check": "node scripts/check-responsive.mjs",
+    "env:check": "node scripts/check-env.mjs local",
+    "env:check:staging": "node scripts/check-env.mjs staging",
+    "env:check:production": "node scripts/check-env.mjs production",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
