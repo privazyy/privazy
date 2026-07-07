@@ -1,30 +1,33 @@
 import { NextResponse } from "next/server";
-import { inngest } from "@/server/inngest/client";
+
+import { safeJsonError } from "@/server/api/errors";
+import { auth } from "@/server/auth";
+import { resolveDocumentGenerationContext } from "@/server/documents/security";
 import { requestDocumentGeneration } from "@/server/documents/service";
-import { documentGenerateApiSchema } from "@/server/documents/schemas";
+import { inngest } from "@/server/inngest/client";
 
 export async function POST(request: Request) {
-  const json = await request.json();
-  const parsed = documentGenerateApiSchema.safeParse(json);
+  try {
+    const json = await request.json();
+    const context = resolveDocumentGenerationContext(await auth(), json);
+    const job = await requestDocumentGeneration(context.input);
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid document generation payload", details: parsed.error.flatten() },
-      { status: 400 },
-    );
+    await inngest.send({
+      data: {
+        jobId: job.id,
+      },
+      id: readIdempotencyKey(json),
+      name: "document/generate.requested",
+    });
+
+    return NextResponse.json({ jobId: job.id, status: job.status }, { status: 202 });
+  } catch (error) {
+    return safeJsonError(error);
   }
+}
 
-  const job = await requestDocumentGeneration(parsed.data);
-
-  await inngest.send({
-    name: "document/generate.requested",
-    data: {
-      jobId: job.id,
-      organizationId: job.organizationId,
-      templateId: job.templateId,
-    },
-    id: parsed.data.idempotencyKey,
-  });
-
-  return NextResponse.json({ jobId: job.id, status: job.status }, { status: 202 });
+function readIdempotencyKey(value: unknown) {
+  if (!value || typeof value !== "object" || !("idempotencyKey" in value)) return undefined;
+  const idempotencyKey = value.idempotencyKey;
+  return typeof idempotencyKey === "string" ? idempotencyKey : undefined;
 }

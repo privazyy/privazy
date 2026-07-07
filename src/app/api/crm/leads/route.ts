@@ -1,20 +1,26 @@
 import { NextResponse } from "next/server";
 
+import { safeJsonError } from "@/server/api/errors";
+import { auth } from "@/server/auth";
+import { crmLeadsQuerySchema, requireCrmApiRead, serializeCrmLead } from "@/server/crm/security";
 import { listIodCrmLeads } from "@/server/leads/iod";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const leads = await listIodCrmLeads(50);
+    requireCrmApiRead(await auth());
 
-    return NextResponse.json({ leads });
+    const url = new URL(request.url);
+    const query = crmLeadsQuerySchema.parse({
+      limit: url.searchParams.get("limit") ?? undefined,
+    });
+    const leads = await listIodCrmLeads(query.limit);
+
+    return NextResponse.json({ leads: leads.map(serializeCrmLead) });
   } catch (error) {
     console.error("CRM leads list failed", error);
-    return NextResponse.json(
-      { error: "Nie udało się pobrać leadów z formularzy." },
-      { status: 500 },
-    );
+    return safeJsonError(error);
   }
 }

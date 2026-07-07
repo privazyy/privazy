@@ -1,5 +1,9 @@
-import { z } from "zod";
 import { DocumentGenerationStatus, DocumentType } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+
+import { actorFromSession, isStaffActor } from "@/server/auth/permissions";
+import { serializeDocumentJobForClient } from "@/server/documents/serializers";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/init";
 
 export const documentsRouter = createTRPCRouter({
@@ -10,19 +14,33 @@ export const documentsRouter = createTRPCRouter({
         status: z.nativeEnum(DocumentGenerationStatus).optional(),
       }),
     )
-    .query(({ ctx, input }) => {
-      return ctx.prisma.documentGenerationJob.findMany({
+    .query(async ({ ctx, input }) => {
+      const actor = actorFromSession(ctx.session);
+      if (!actor) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const isStaff = isStaffActor(actor);
+      const clientOrganizationIds = isStaff ? [] : await listClientOrganizationIds(ctx.prisma, actor.id);
+
+      if (!isStaff && input.organizationId && !clientOrganizationIds.includes(input.organizationId)) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const jobs = await ctx.prisma.documentGenerationJob.findMany({
         where: {
-          organizationId: input.organizationId,
+          organizationId: isStaff ? input.organizationId : { in: clientOrganizationIds },
           status: input.status,
         },
         include: {
-          template: true,
           generatedDocument: true,
+          template: true,
         },
         orderBy: { createdAt: "desc" },
         take: 50,
       });
+
+      return jobs.map(serializeDocumentJobForClient);
     }),
 
   activeTemplates: protectedProcedure
@@ -37,3 +55,19 @@ export const documentsRouter = createTRPCRouter({
       });
     }),
 });
+
+async function listClientOrganizationIds(
+  prisma: {
+    clientProfile: {
+      findMany(input: { select: { organizationId: true }; where: { userId: string } }): Promise<Array<{ organizationId: string }>>;
+    };
+  },
+  userId: string,
+) {
+  const memberships = await prisma.clientProfile.findMany({
+    select: { organizationId: true },
+    where: { userId },
+  });
+
+  return memberships.map((membership) => membership.organizationId);
+}

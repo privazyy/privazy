@@ -8,6 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:security": "vitest run tests/security",
+    "test:smoke": "vitest run tests/smoke",
+    "test:watch": "vitest",
     "responsive:check": "node scripts/check-responsive.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -50,7 +55,8 @@
     "eslint-config-next": "^16.1.1",
     "prisma": "^6.19.1",
     "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "postcss": "^8.5.10"
