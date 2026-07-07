@@ -124,6 +124,14 @@ const iconMap = {
 type Tone = "green" | "amber" | "red" | "blue" | "gray";
 
 type AnswerMap = Record<string, string>;
+type LeadSubmitState = "idle" | "submitting" | "success" | "error";
+
+declare global {
+  interface Window {
+    onPrivazyTurnstileExpired?: () => void;
+    onPrivazyTurnstileSuccess?: (token: string) => void;
+  }
+}
 
 type CheckerQuestion = {
   id: string;
@@ -674,18 +682,24 @@ function TonePill({ tone, children }: { tone: Tone; children: React.ReactNode })
 function PrimaryButton({
   children,
   className,
+  disabled,
   onClick,
+  type = "button",
 }: {
   children: React.ReactNode;
   className?: string;
+  disabled?: boolean;
   onClick?: () => void;
+  type?: "button" | "submit";
 }) {
   return (
     <button
-      type="button"
+      type={type}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
         "lp-cta inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] border-0 bg-[var(--brand)] px-6 text-center font-semibold text-[var(--text-on-brand)] shadow-[var(--shadow-brand-sm)]",
+        disabled && "cursor-not-allowed opacity-60",
         className,
       )}
     >
@@ -717,6 +731,7 @@ function SecondaryLink({
 }
 
 export function PrivazyLanding() {
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY;
   const [checkerOpen, setCheckerOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
@@ -726,6 +741,15 @@ export function PrivazyLanding() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [company, setCompany] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [website, setWebsite] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [leadSubmitState, setLeadSubmitState] = useState<LeadSubmitState>("idle");
+  const [leadSubmitMessage, setLeadSubmitMessage] = useState("");
   const offerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -746,6 +770,9 @@ export function PrivazyLanding() {
   const restartChecker = () => {
     setStep(0);
     setAnswers({});
+    setLeadSubmitState("idle");
+    setLeadSubmitMessage("");
+    setTurnstileToken("");
   };
 
   const pickIndustry = (value: string) => {
@@ -777,6 +804,88 @@ export function PrivazyLanding() {
   const result = step >= activeQuestions.length ? computeResult(answers) : null;
   const activeTabLabel = platformTabs.find((tab) => tab.key === activeTab)?.label ?? platformTabs[0].label;
   const progress = `${Math.round((Math.min(step, activeQuestions.length) / activeQuestions.length) * 100)}%`;
+  const canSubmitLead = leadSubmitState !== "submitting" && privacyConsent && (turnstileSiteKey ? Boolean(turnstileToken) : process.env.NODE_ENV !== "production");
+
+  useEffect(() => {
+    if (!checkerOpen || !result || !turnstileSiteKey) return undefined;
+
+    window.onPrivazyTurnstileSuccess = (token: string) => {
+      setTurnstileToken(token);
+      setLeadSubmitMessage("");
+    };
+    window.onPrivazyTurnstileExpired = () => setTurnstileToken("");
+
+    const existing = document.querySelector<HTMLScriptElement>('script[src^="https://challenges.cloudflare.com/turnstile/v0/api.js"]');
+    if (!existing) {
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      window.onPrivazyTurnstileSuccess = undefined;
+      window.onPrivazyTurnstileExpired = undefined;
+    };
+  }, [checkerOpen, result, turnstileSiteKey]);
+
+  const submitLead = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!result) return;
+    if (!canSubmitLead) {
+      setLeadSubmitState("error");
+      setLeadSubmitMessage("Potwierdź zgodę i zabezpieczenie formularza.");
+      return;
+    }
+
+    setLeadSubmitState("submitting");
+    setLeadSubmitMessage("");
+
+    try {
+      const response = await fetch("/api/leads/iod", {
+        body: JSON.stringify({
+          answers,
+          contact: {
+            company,
+            email,
+            marketingConsent,
+            name: contactName,
+            phone: phone || undefined,
+            privacyConsent,
+          },
+          resultSummary: {
+            obligationStatus: result.assessment.obligation_status,
+            primaryTrigger: result.assessment.primary_trigger,
+            scale: result.assessment.scale_result.classification,
+          },
+          source: {
+            page: "landing",
+            placement: "checker-result",
+          },
+          turnstileToken,
+          website,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(payload?.error?.message ?? "Nie udało się wysłać zgłoszenia.");
+      }
+
+      setLeadSubmitState("success");
+      setLeadSubmitMessage("Dziękujemy. Jeśli wynik wymaga konsultacji, odezwiemy się w dni robocze.");
+      setTurnstileToken("");
+    } catch (error) {
+      setLeadSubmitState("error");
+      setLeadSubmitMessage(error instanceof Error ? error.message : "Nie udało się wysłać zgłoszenia.");
+    }
+  };
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[var(--surface-page)] text-[var(--text-body)]">
@@ -930,23 +1039,112 @@ export function PrivazyLanding() {
                     </a>
                   ))}
                 </div>
-                <div className="mt-[22px] rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-page)] p-4">
+                <form onSubmit={submitLead} className="mt-[22px] rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-page)] p-4">
                   <div className="mb-2.5 text-[length:var(--fs-sm)] font-semibold text-[var(--text-strong)]">
                     Chcesz dostać wynik i rekomendację na e-mail?
                   </div>
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <input
+                      value={contactName}
+                      onChange={(event) => setContactName(event.target.value)}
+                      placeholder="Imię i nazwisko"
+                      autoComplete="name"
+                      required
+                      maxLength={120}
+                      className="h-11 min-w-0 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3.5 text-[length:var(--fs-body)] text-[var(--text-strong)] outline-none focus-visible:border-[var(--brand)] focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+                    />
+                    <input
+                      value={company}
+                      onChange={(event) => setCompany(event.target.value)}
+                      placeholder="Nazwa firmy"
+                      autoComplete="organization"
+                      required
+                      maxLength={160}
+                      className="h-11 min-w-0 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3.5 text-[length:var(--fs-body)] text-[var(--text-strong)] outline-none focus-visible:border-[var(--brand)] focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+                    />
                     <input
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder="twoj@email.pl"
-                      className="h-11 min-w-[200px] flex-1 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3.5 text-[length:var(--fs-body)] text-[var(--text-strong)] outline-none focus-visible:border-[var(--brand)] focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      maxLength={180}
+                      className="h-11 min-w-0 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3.5 text-[length:var(--fs-body)] text-[var(--text-strong)] outline-none focus-visible:border-[var(--brand)] focus-visible:shadow-[0_0_0_3px_var(--ring)]"
                     />
-                    <PrimaryButton className="min-h-11 px-5 text-[length:var(--fs-body)] shadow-none">Wyślij wynik</PrimaryButton>
+                    <input
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      placeholder="Telefon (opcjonalnie)"
+                      type="tel"
+                      autoComplete="tel"
+                      maxLength={48}
+                      className="h-11 min-w-0 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3.5 text-[length:var(--fs-body)] text-[var(--text-strong)] outline-none focus-visible:border-[var(--brand)] focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+                    />
+                  </div>
+                  <label className="mt-3 flex items-start gap-2.5 text-left text-[length:var(--fs-xs)] leading-relaxed text-[var(--text-muted)]">
+                    <input
+                      checked={privacyConsent}
+                      onChange={(event) => setPrivacyConsent(event.target.checked)}
+                      type="checkbox"
+                      className="mt-1 size-4 shrink-0"
+                      required
+                    />
+                    <span>Wyrażam zgodę na kontakt w sprawie wyniku checkera IOD i obsługi zapytania.</span>
+                  </label>
+                  <label className="mt-2 flex items-start gap-2.5 text-left text-[length:var(--fs-xs)] leading-relaxed text-[var(--text-muted)]">
+                    <input
+                      checked={marketingConsent}
+                      onChange={(event) => setMarketingConsent(event.target.checked)}
+                      type="checkbox"
+                      className="mt-1 size-4 shrink-0"
+                    />
+                    <span>Chcę otrzymywać dodatkowe informacje marketingowe. Zgoda jest dobrowolna.</span>
+                  </label>
+                  <input
+                    value={website}
+                    onChange={(event) => setWebsite(event.target.value)}
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    className="sr-only"
+                  />
+                  {turnstileSiteKey ? (
+                    <div
+                      className="cf-turnstile mt-3 min-h-[70px]"
+                      data-sitekey={turnstileSiteKey}
+                      data-callback="onPrivazyTurnstileSuccess"
+                      data-expired-callback="onPrivazyTurnstileExpired"
+                    />
+                  ) : (
+                    <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3 text-[length:var(--fs-xs)] text-[var(--text-muted)]">
+                      Zabezpieczenie Turnstile nie ma skonfigurowanego publicznego klucza. W produkcji wysyłka formularza jest blokowana.
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                    <PrimaryButton
+                      type="submit"
+                      disabled={!canSubmitLead}
+                      className="min-h-11 px-5 text-[length:var(--fs-body)] shadow-none"
+                    >
+                      {leadSubmitState === "submitting" ? "Wysyłanie..." : "Wyślij wynik"}
+                    </PrimaryButton>
+                    {leadSubmitMessage && (
+                      <span
+                        className={cn(
+                          "text-[length:var(--fs-xs)] leading-relaxed",
+                          leadSubmitState === "success" ? "text-[var(--success)]" : "text-[var(--danger)]",
+                        )}
+                      >
+                        {leadSubmitMessage}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-2.5 text-[length:var(--fs-xs)] text-[var(--text-faint)]">
                     Wynik checkera ma charakter informacyjny i pomaga dobrać dalszą ścieżkę. W przypadkach granicznych rekomendujemy konsultację ze specjalistą.
                   </p>
-                </div>
+                </form>
                 <div className="mt-[18px] flex justify-center">
                   <button
                     type="button"
