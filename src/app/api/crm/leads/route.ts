@@ -1,20 +1,22 @@
-import { NextResponse } from "next/server";
-
-import { listIodCrmLeads } from "@/server/leads/iod";
+import { crmApiData, crmApiMethodNotAllowed, withCrmApiMutation, withCrmApiRead } from "@/server/crm/api-guard";
+import { crmLeadListQuerySchema, getCrmLeadsForStaff } from "@/server/crm/leads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
-  try {
-    const leads = await listIodCrmLeads(50);
+export const GET = withCrmApiRead(async (request) => {
+  const url = new URL(request.url);
+  const query = crmLeadListQuerySchema.parse(Object.fromEntries(url.searchParams));
+  const data = await getCrmLeadsForStaff(query);
 
-    return NextResponse.json({ leads });
-  } catch (error) {
-    console.error("CRM leads list failed", error);
-    return NextResponse.json(
-      { error: "Nie udało się pobrać leadów z formularzy." },
-      { status: 500 },
-    );
-  }
-}
+  return crmApiData(data);
+});
+
+const mutationNotImplemented = withCrmApiMutation(async () =>
+  crmApiMethodNotAllowed("Mutacje leadow CRM beda dodane w osobnym PR."),
+);
+
+export const POST = mutationNotImplemented;
+export const PATCH = mutationNotImplemented;
+export const PUT = mutationNotImplemented;
+export const DELETE = mutationNotImplemented;
