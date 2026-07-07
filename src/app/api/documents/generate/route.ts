@@ -1,30 +1,46 @@
 import { NextResponse } from "next/server";
 import { inngest } from "@/server/inngest/client";
+import { requireDocumentGenerationAccess, safeDocumentGenerationError } from "@/server/documents/guards";
 import { requestDocumentGeneration } from "@/server/documents/service";
 import { documentGenerateApiSchema } from "@/server/documents/schemas";
 
 export async function POST(request: Request) {
-  const json = await request.json();
-  const parsed = documentGenerateApiSchema.safeParse(json);
+  let json: unknown;
 
-  if (!parsed.success) {
+  try {
+    json = await request.json();
+  } catch {
     return NextResponse.json(
-      { error: "Invalid document generation payload", details: parsed.error.flatten() },
+      { error: "Invalid JSON payload.", code: "VALIDATION_ERROR" },
       { status: 400 },
     );
   }
 
-  const job = await requestDocumentGeneration(parsed.data);
+  const parsed = documentGenerateApiSchema.safeParse(json);
 
-  await inngest.send({
-    name: "document/generate.requested",
-    data: {
-      jobId: job.id,
-      organizationId: job.organizationId,
-      templateId: job.templateId,
-    },
-    id: parsed.data.idempotencyKey,
-  });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid document generation payload.", code: "VALIDATION_ERROR", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
 
-  return NextResponse.json({ jobId: job.id, status: job.status }, { status: 202 });
+  try {
+    const context = await requireDocumentGenerationAccess(parsed.data);
+    const job = await requestDocumentGeneration(context);
+
+    await inngest.send({
+      name: "document/generate.requested",
+      data: {
+        jobId: job.id,
+      },
+      id: context.idempotencyKey,
+    });
+
+    return NextResponse.json({ jobId: job.id, status: job.status }, { status: 202 });
+  } catch (error) {
+    const response = safeDocumentGenerationError(error);
+
+    return NextResponse.json(response.body, { status: response.status });
+  }
 }

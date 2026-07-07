@@ -14,6 +14,13 @@ export const generateDocument = inngest.createFunction(
     return step.run("render-docx-and-update-records", async () => {
       const document = await generateDocumentFromJob(jobId);
 
+      if (!document) {
+        return {
+          generatedDocumentId: null,
+          status: "SKIPPED",
+        };
+      }
+
       return {
         generatedDocumentId: document.id,
         status: document.status,
