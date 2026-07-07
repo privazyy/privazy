@@ -6,7 +6,8 @@ export default function DocumentsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold">Generowanie dokumentu</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Przykładowy flow: walidacja formularza, API route, Inngest event i job generowania DOCX.
+          Publiczny flow demo jest zablokowany. Generowanie wymaga teraz sesji staff i weryfikacji zasobow
+          po stronie serwera.
         </p>
       </div>
       <DocumentRequestForm />

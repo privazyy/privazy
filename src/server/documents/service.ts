@@ -2,29 +2,63 @@ import "server-only";
 import { DocumentGenerationStatus, GeneratedDocumentStatus, Prisma } from "@prisma/client";
 import { getPrisma } from "@/server/db/prisma";
 import { renderDocxTemplate } from "@/server/documents/docx";
-import type { DocumentGenerationInput } from "@/server/documents/schemas";
+import type { VerifiedDocumentGenerationContext } from "@/server/documents/guards";
 import { createStorageKey } from "@/server/storage/keys";
 import { downloadPrivateObject, uploadPrivateObject } from "@/server/storage/r2";
 
-export async function requestDocumentGeneration(input: DocumentGenerationInput) {
+export async function requestDocumentGeneration(context: VerifiedDocumentGenerationContext) {
   const prisma = getPrisma();
 
-  return prisma.documentGenerationJob.create({
-    data: {
-      organizationId: input.organizationId,
-      templateId: input.templateId,
-      createdById: input.createdById,
-      inputSnapshot: input.data as Prisma.InputJsonValue,
-      status: DocumentGenerationStatus.PENDING,
-    },
+  return prisma.$transaction(async (tx) => {
+    const job = await tx.documentGenerationJob.create({
+      data: {
+        organizationId: context.organizationId,
+        templateId: context.templateId,
+        createdById: context.actorUserId,
+        inputSnapshot: context.data as Prisma.InputJsonValue,
+        status: DocumentGenerationStatus.PENDING,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: context.actorUserId,
+        organizationId: context.organizationId,
+        action: "document.generation_requested",
+        entityType: "DocumentGenerationJob",
+        entityId: job.id,
+        metadata: {
+          reason: context.reason ?? null,
+          source: context.source,
+          templateId: context.templateId,
+          templateType: context.template.type,
+          templateVersion: context.template.version,
+        },
+      },
+    });
+
+    return job;
   });
 }
 
 export async function generateDocumentFromJob(jobId: string) {
   const prisma = getPrisma();
 
-  const job = await prisma.documentGenerationJob.update({
+  const existingJob = await prisma.documentGenerationJob.findUnique({
     where: { id: jobId },
+    include: { generatedDocument: true, template: true },
+  });
+
+  if (!existingJob) {
+    return null;
+  }
+
+  if (existingJob.status !== DocumentGenerationStatus.PENDING) {
+    return existingJob.generatedDocument;
+  }
+
+  const job = await prisma.documentGenerationJob.update({
+    where: { id: existingJob.id },
     data: { status: DocumentGenerationStatus.PROCESSING, errorMessage: null },
     include: { template: true },
   });
