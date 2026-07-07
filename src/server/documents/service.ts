@@ -75,16 +75,16 @@ export async function generateDocumentFromJob(jobId: string) {
         entityType: "GeneratedDocument",
         entityId: generatedDocument.id,
         metadata: {
+          fileVariants: ["docx"],
           generationJobId: job.id,
           templateId: job.templateId,
-          docxFileKey,
         },
       },
     });
 
     return generatedDocument;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown document generation error";
+    const message = redactStorageError(error instanceof Error ? error.message : "Unknown document generation error");
 
     await prisma.documentGenerationJob.update({
       where: { id: job.id },
@@ -107,4 +107,11 @@ export async function generateDocumentFromJob(jobId: string) {
 
     throw error;
   }
+}
+
+function redactStorageError(message: string) {
+  return message
+    .replace(/generated-documents\/[^\s"']+/g, "[REDACTED_STORAGE_KEY]")
+    .replace(/templates\/[^\s"']+/g, "[REDACTED_STORAGE_KEY]")
+    .replace(/https:\/\/[^\s"']+/g, "[REDACTED_URL]");
 }
