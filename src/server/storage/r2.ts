@@ -1,6 +1,7 @@
 import "server-only";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ConfigurationError } from "@/server/env/errors";
 
 let r2Client: S3Client | null = null;
 
@@ -8,7 +9,7 @@ function requiredEnv(name: string) {
   const value = process.env[name];
 
   if (!value) {
-    throw new Error(`Missing environment variable: ${name}`);
+    throw new ConfigurationError("R2 runtime configuration is incomplete.", [name]);
   }
 
   return value;

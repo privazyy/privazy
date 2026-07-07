@@ -40,8 +40,20 @@ jobs:
             exit 1
           fi
 
+      - name: Validate local env schema
+        run: npm run env:check
+        env:
+          AUTH_SECRET: ci-placeholder-secret
+          DATABASE_URL: postgresql_placeholder_for_ci
+
       - name: Generate Prisma client
         run: npm run prisma:generate
+
+      - name: Validate Prisma schema with placeholder datasource env
+        run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/privazy?schema=public
+          DIRECT_URL: postgresql://user:password@localhost:5432/privazy?schema=public
 
       - name: Lint
         run: npm run lint
