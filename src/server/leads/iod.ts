@@ -158,7 +158,14 @@ export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMe
   };
 }
 
-export async function listIodCrmLeads(limit = 50) {
+export type ListIodCrmLeadsOptions = {
+  limit?: number;
+  page?: number;
+};
+
+export async function listIodCrmLeads(options: number | ListIodCrmLeadsOptions = 50) {
+  const limit = typeof options === "number" ? options : (options.limit ?? 50);
+  const page = typeof options === "number" ? 1 : (options.page ?? 1);
   const prisma = getPrisma();
   const submissions = await prisma.formSubmission.findMany({
     where: {
@@ -173,6 +180,7 @@ export async function listIodCrmLeads(limit = 50) {
     orderBy: {
       createdAt: "desc",
     },
+    skip: (page - 1) * limit,
     take: limit,
   });
 
