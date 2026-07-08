@@ -13,6 +13,7 @@ import type {
   Tone,
 } from "@/components/crm/crm-data";
 import { getPrisma } from "@/server/db/prisma";
+import { serializeDownloadableFilesForCrm } from "@/server/documents/serializers";
 import { listIodCrmLeads } from "@/server/leads/iod";
 
 const defaultFilters = ["Wszystkie", "Aktywne", "Pilne", "Moje", "Do akceptacji"].map((label) => ({ label }));
@@ -174,6 +175,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
 
   const documentRows: TableRow[] = generatedDocuments.map((document) => {
     const status = generatedStatusLabels[document.status];
+    const files = serializeDownloadableFilesForCrm(document);
 
     return {
       actionRoute: "doc-review",
@@ -184,7 +186,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         `v${document.templateVersion}`,
         document.createdBy.name ?? document.createdBy.email,
         formatDate(document.createdAt),
-        document.pdfFileKey ? "PDF" : "DOCX",
+        files.map((file) => file.variant.toUpperCase()).join(", ") || "-",
         "",
       ],
       primary: document.template.name,
@@ -228,7 +230,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       primary: template.name,
-      secondary: template.fileKey,
+      secondary: `ID ${template.id.slice(0, 8)}`,
       status: { label: status, tone: statusTone(status) },
     };
   });

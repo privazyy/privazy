@@ -35,6 +35,18 @@ export function getR2Bucket() {
   return requiredEnv("CLOUDFLARE_R2_BUCKET");
 }
 
+export function getPrivateDownloadUrlTtlSeconds() {
+  const raw = process.env.DOCUMENT_DOWNLOAD_SIGNED_URL_TTL_SECONDS;
+  const parsed = raw ? Number(raw) : 60;
+
+  return normalizePrivateDownloadUrlTtlSeconds(parsed);
+}
+
+function normalizePrivateDownloadUrlTtlSeconds(value: number) {
+  if (!Number.isFinite(value)) return 60;
+  return Math.max(15, Math.min(Math.trunc(value), 300));
+}
+
 export async function uploadPrivateObject(input: {
   key: string;
   body: Buffer | Uint8Array | string;
@@ -61,19 +73,19 @@ export async function downloadPrivateObject(key: string) {
   );
 
   if (!response.Body) {
-    throw new Error(`R2 object is empty: ${key}`);
+    throw new Error("R2 object is empty");
   }
 
   return Buffer.from(await response.Body.transformToByteArray());
 }
 
-export async function createPrivateDownloadUrl(key: string, expiresInSeconds = 300) {
+export async function createPrivateDownloadUrl(key: string, expiresInSeconds = getPrivateDownloadUrlTtlSeconds()) {
   return getSignedUrl(
     getR2Client(),
     new GetObjectCommand({
       Bucket: getR2Bucket(),
       Key: key,
     }),
-    { expiresIn: expiresInSeconds },
+    { expiresIn: normalizePrivateDownloadUrlTtlSeconds(expiresInSeconds) },
   );
 }

@@ -23,6 +23,8 @@ These must not be exposed to browser/client code.
 | `SUPABASE_DB_PASSWORD` | Database password. |
 | `DATABASE_URL` | Pooled database connection string for runtime. |
 | `DIRECT_URL` | Direct database connection string for migrations. |
+| `DOCUMENT_DOWNLOAD_SIGNED_URL_TTL_SECONDS` | Short TTL for private document download signed URLs. Defaults to 60 seconds and is capped at 300 seconds. |
+| `AUDIT_LOG_HASH_SALT` | Server-only salt for hashed IP and user-agent markers in download audit records. |
 | `VERCEL_TOKEN` | Vercel automation token. |
 | `VERCEL_ORG_ID` | Vercel team or user ID. |
 | `VERCEL_PROJECT_ID` | Vercel project ID. |

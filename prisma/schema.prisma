@@ -51,6 +51,12 @@ enum GeneratedDocumentStatus {
   ARCHIVED
 }
 
+enum DocumentDownloadSource {
+  CLIENT_PORTAL
+  CRM
+  API
+}
+
 enum FormSubmissionStatus {
   DRAFT
   SUBMITTED
@@ -75,6 +81,7 @@ model User {
   generatedDocuments GeneratedDocument[]
   auditLogs AuditLog[]
   formSubmissions FormSubmission[]
+  documentDownloads DocumentDownload[]
 }
 
 model Organization {
@@ -98,6 +105,7 @@ model Organization {
   generatedDocuments GeneratedDocument[]
   auditLogs AuditLog[]
   formSubmissions FormSubmission[]
+  documentDownloads DocumentDownload[]
 }
 
 model ClientProfile {
@@ -178,10 +186,35 @@ model GeneratedDocument {
   template DocumentTemplate @relation(fields: [templateId], references: [id])
   generationJob DocumentGenerationJob @relation(fields: [generationJobId], references: [id])
   createdBy User @relation(fields: [createdById], references: [id])
+  downloads DocumentDownload[]
 
   @@index([organizationId])
   @@index([templateId])
   @@index([status])
+}
+
+model DocumentDownload {
+  id                  String   @id @default(cuid())
+  fileId              String
+  generatedDocumentId String
+  organizationId      String
+  userId              String
+  actorRole           UserRole
+  source              DocumentDownloadSource
+  downloadedAt        DateTime @default(now())
+  ipHash              String?
+  userAgentHash       String?
+  createdAt           DateTime @default(now())
+
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Restrict)
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([fileId])
+  @@index([generatedDocumentId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([downloadedAt])
 }
 
 model AuditLog {
