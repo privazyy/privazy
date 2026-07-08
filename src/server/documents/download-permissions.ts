@@ -104,7 +104,7 @@ export async function resolveDownloadContext(fileId: string, user: DownloadActor
 }
 
 export function canDownloadDocumentFile(user: DownloadActor, context: DocumentDownloadContext) {
-  if (!user.id) return false;
+  if (!user.id || user.id !== context.actor.id) return false;
 
   if (context.actor.role === "CLIENT") {
     return (
@@ -117,20 +117,30 @@ export function canDownloadDocumentFile(user: DownloadActor, context: DocumentDo
 }
 
 export function assertCanDownloadDocumentFile(user: DownloadActor, context: DocumentDownloadContext) {
-  if (!user.id) {
+  if (!user.id || user.id !== context.actor.id) {
     throw new DocumentDownloadError("unauthorized", "Wymagane logowanie.");
   }
 
-  if (context.actor.role === "CLIENT" && !CLIENT_DOWNLOAD_STATUSES.has(context.document.status)) {
-    throw new DocumentDownloadError("conflict", "Plik nie jest gotowy do pobrania.");
+  if (context.actor.role === "CLIENT") {
+    // Check tenant ownership before readiness so a client cannot use status
+    // differences to confirm that another organization's document exists.
+    if (!context.actor.organizationIds.includes(context.document.organizationId)) {
+      throw new DocumentDownloadError("not_found", "Nie znaleziono pliku.");
+    }
+
+    if (!CLIENT_DOWNLOAD_STATUSES.has(context.document.status)) {
+      throw new DocumentDownloadError("conflict", "Plik nie jest gotowy do pobrania.");
+    }
+
+    return;
   }
 
-  if (context.actor.role !== "CLIENT" && !STAFF_DOWNLOAD_STATUSES.has(context.document.status)) {
-    throw new DocumentDownloadError("conflict", "Plik nie jest gotowy do pobrania.");
-  }
-
-  if (!canDownloadDocumentFile(user, context)) {
+  if (!STAFF_DOWNLOAD_ROLES.has(context.actor.role)) {
     throw new DocumentDownloadError("not_found", "Nie znaleziono pliku.");
+  }
+
+  if (!STAFF_DOWNLOAD_STATUSES.has(context.document.status)) {
+    throw new DocumentDownloadError("conflict", "Plik nie jest gotowy do pobrania.");
   }
 }
 

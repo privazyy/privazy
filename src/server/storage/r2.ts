@@ -37,10 +37,14 @@ export function getR2Bucket() {
 
 export function getPrivateDownloadUrlTtlSeconds() {
   const raw = process.env.DOCUMENT_DOWNLOAD_SIGNED_URL_TTL_SECONDS;
-  const parsed = raw ? Number.parseInt(raw, 10) : 60;
+  const parsed = raw ? Number(raw) : 60;
 
-  if (!Number.isFinite(parsed)) return 60;
-  return Math.max(15, Math.min(parsed, 300));
+  return normalizePrivateDownloadUrlTtlSeconds(parsed);
+}
+
+function normalizePrivateDownloadUrlTtlSeconds(value: number) {
+  if (!Number.isFinite(value)) return 60;
+  return Math.max(15, Math.min(Math.trunc(value), 300));
 }
 
 export async function uploadPrivateObject(input: {
@@ -82,6 +86,6 @@ export async function createPrivateDownloadUrl(key: string, expiresInSeconds = g
       Bucket: getR2Bucket(),
       Key: key,
     }),
-    { expiresIn: expiresInSeconds },
+    { expiresIn: normalizePrivateDownloadUrlTtlSeconds(expiresInSeconds) },
   );
 }

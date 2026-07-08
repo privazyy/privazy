@@ -51,6 +51,12 @@ enum GeneratedDocumentStatus {
   ARCHIVED
 }
 
+enum DocumentDownloadSource {
+  CLIENT_PORTAL
+  CRM
+  API
+}
+
 enum FormSubmissionStatus {
   DRAFT
   SUBMITTED
@@ -194,15 +200,15 @@ model DocumentDownload {
   organizationId      String
   userId              String
   actorRole           UserRole
-  source              String
+  source              DocumentDownloadSource
   downloadedAt        DateTime @default(now())
   ipHash              String?
   userAgentHash       String?
   createdAt           DateTime @default(now())
 
-  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
-  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Restrict)
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([fileId])
   @@index([generatedDocumentId])

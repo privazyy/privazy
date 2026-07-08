@@ -8,8 +8,10 @@
 | No server-side permission check | Added `src/server/documents/download-permissions.ts`. |
 | No download audit | Added `DocumentDownload` model and migration. |
 | Raw keys in audit metadata | Removed `docxFileKey` from `document.generated` metadata. |
-| Raw keys in CRM/TRPC document paths | Added safe serializers and removed known raw-key response paths. |
+| Raw keys/cross-tenant IDs in CRM/TRPC document paths | Added safe serializers, scoped CLIENT job lists to linked organizations, and removed known raw-key response paths. |
 | Long default signed URL TTL | Changed default private download TTL to 60 seconds with 300 second cap. |
+| Cross-tenant status oracle | Tenant ownership is checked before readiness, so foreign documents always return a safe `404`. |
+| Download audit exposure/retention | Enabled RLS, revoked Supabase Data API roles, and changed audit relations to restrictive deletion. |
 
 ## Remaining Gaps
 
@@ -22,4 +24,7 @@
 
 ## Supabase/Data API Note
 
-If `DocumentDownload` is created in Supabase `public`, do not assume it is exposed through the Data API. Current Supabase behavior is moving toward explicit grants for new tables. This app should access the table through server-side Prisma, not browser Supabase clients.
+`DocumentDownload` is created in Supabase `public`, but its migration enables
+RLS and revokes all access from `anon` and `authenticated` when those roles
+exist. It has no Data API policies. The app accesses the table through the
+trusted server-side Prisma runtime connection, never a browser Supabase client.

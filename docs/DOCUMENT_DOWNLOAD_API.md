@@ -46,6 +46,7 @@ Clients must not pass raw storage keys.
 ```
 
 The response does not include storage keys, bucket names, stack traces, Prisma errors, or signed URL in error bodies.
+Successful responses set `Cache-Control: private, no-store, max-age=0`.
 
 ## Error Responses
 
@@ -55,3 +56,7 @@ The response does not include storage keys, bucket names, stack traces, Prisma e
 | `404` | Missing file or forbidden cross-tenant file. |
 | `409` | File/document status is not ready for this actor. |
 | `500` | Safe internal error. |
+
+For `CLIENT`, organization ownership is checked before readiness. A document
+outside the actor's organizations therefore returns `404` regardless of its
+status.

@@ -57,12 +57,19 @@ async function createDownloadResponse(request: Request, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({
-      expiresAt: expiresAt.toISOString(),
-      file: downloadContext.file,
-      ok: true,
-      url,
-    });
+    return NextResponse.json(
+      {
+        expiresAt: expiresAt.toISOString(),
+        file: downloadContext.file,
+        ok: true,
+        url,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+        },
+      },
+    );
   } catch (error) {
     if (error instanceof DocumentDownloadError) {
       return NextResponse.json(
@@ -76,7 +83,9 @@ async function createDownloadResponse(request: Request, context: RouteContext) {
       );
     }
 
-    console.error("Document download failed", redactError(error));
+    console.error("Document download failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     return NextResponse.json(
       {
         error: {
@@ -94,12 +103,4 @@ function statusForDownloadError(error: DocumentDownloadError) {
   if (error.code === "forbidden") return 403;
   if (error.code === "conflict") return 409;
   return 404;
-}
-
-function redactError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return message
-    .replace(/generated-documents\/[^\s"']+/g, "[REDACTED_STORAGE_KEY]")
-    .replace(/templates\/[^\s"']+/g, "[REDACTED_STORAGE_KEY]")
-    .replace(/https:\/\/[^\s"']+/g, "[REDACTED_URL]");
 }

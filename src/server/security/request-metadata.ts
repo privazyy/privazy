@@ -9,7 +9,9 @@ export function getClientIp(request: Request) {
 export function hashRequestValue(value: string | null | undefined) {
   if (!value) return undefined;
 
-  const salt = process.env.AUDIT_LOG_HASH_SALT ?? process.env.AUTH_SECRET ?? "privazy-audit-log";
+  const salt = process.env.AUDIT_LOG_HASH_SALT ?? process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+  if (!salt) return undefined;
+
   return createHash("sha256").update(`${salt}:${value}`).digest("hex").slice(0, 32);
 }
 

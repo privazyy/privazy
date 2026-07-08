@@ -14,9 +14,11 @@ Generated documents remain private Cloudflare R2 objects.
 
 ## Helper Behavior
 
-`createPrivateDownloadUrl(key, ttl)` is server-only and defaults to `getPrivateDownloadUrlTtlSeconds()`.
+`createPrivateDownloadUrl(key, ttl)` is server-only and defaults to `getPrivateDownloadUrlTtlSeconds()`. It clamps explicit TTL arguments too, so another server caller cannot accidentally create a link longer than 300 seconds.
 
 `downloadPrivateObject` no longer includes the object key in the empty-object error message.
+The download endpoint logs only the error class name for unexpected failures,
+not the R2/Prisma error message.
 
 ## Follow-up
 

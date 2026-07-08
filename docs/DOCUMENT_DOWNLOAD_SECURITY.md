@@ -26,6 +26,14 @@ The client never sends or receives `docxFileKey`, `pdfFileKey`, `zipFileKey`, te
 | `ADMIN` | Can download non-draft generated documents. |
 
 Cross-tenant CLIENT attempts return a safe not-found response.
+Tenant ownership is checked before document readiness, so a client cannot use
+the difference between `404` and `409` to confirm another organization's draft
+or otherwise unavailable document.
+
+The existing TRPC document list is also role-aware for this flow: `CLIENT`
+queries are constrained to `ClientProfile.organizationId` values and expose
+download actions only for `GENERATED` or `DELIVERED` documents. Staff uses the
+CRM serializer and receives actions only for its allowed non-draft statuses.
 
 ## File Readiness
 
@@ -42,6 +50,9 @@ Follow-up: add a normalized `GeneratedDocumentFile` model with per-file status a
 
 ## Signed URL TTL
 
-`DOCUMENT_DOWNLOAD_SIGNED_URL_TTL_SECONDS` controls the TTL. The default is 60 seconds. Runtime clamps the value to 15-300 seconds.
+`DOCUMENT_DOWNLOAD_SIGNED_URL_TTL_SECONDS` controls the TTL. The default is 60 seconds. Runtime clamps both environment configuration and explicit helper arguments to 15-300 seconds.
+
+Successful responses use `Cache-Control: private, no-store, max-age=0` so the
+JSON response containing the bearer URL is not cached.
 
 Do not use public R2 URLs for private documents.

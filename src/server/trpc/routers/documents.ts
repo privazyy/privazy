@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { DocumentGenerationStatus, DocumentType } from "@prisma/client";
-import { serializeDownloadableFilesForCrm } from "@/server/documents/serializers";
+import {
+  serializeDownloadableFilesForClient,
+  serializeDownloadableFilesForCrm,
+} from "@/server/documents/serializers";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/init";
+
+const clientDownloadStatuses = new Set(["DELIVERED", "GENERATED"]);
+const staffDownloadStatuses = new Set(["ARCHIVED", "DELIVERED", "GENERATED"]);
 
 export const documentsRouter = createTRPCRouter({
   listJobs: protectedProcedure
@@ -12,9 +18,32 @@ export const documentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const actor = await ctx.prisma.user.findUnique({
+        where: { id: ctx.session.user.id },
+        select: {
+          role: true,
+          clientProfiles: {
+            select: {
+              organizationId: true,
+            },
+          },
+        },
+      });
+
+      if (!actor) return [];
+
+      const isClient = actor.role === "CLIENT";
+      const clientOrganizationIds = actor.clientProfiles.map((profile) => profile.organizationId);
+      const scopedOrganizationIds =
+        input.organizationId && clientOrganizationIds.includes(input.organizationId)
+          ? [input.organizationId]
+          : input.organizationId
+            ? []
+            : clientOrganizationIds;
+
       const jobs = await ctx.prisma.documentGenerationJob.findMany({
         where: {
-          organizationId: input.organizationId,
+          organizationId: isClient ? { in: scopedOrganizationIds } : input.organizationId,
           status: input.status,
         },
         include: {
@@ -51,21 +80,34 @@ export const documentsRouter = createTRPCRouter({
         take: 50,
       });
 
-      return jobs.map((job) => ({
-        ...job,
-        generatedDocument: job.generatedDocument
-          ? {
-              createdAt: job.generatedDocument.createdAt,
-              files: serializeDownloadableFilesForCrm(job.generatedDocument),
-              id: job.generatedDocument.id,
-              organizationId: job.generatedDocument.organizationId,
-              status: job.generatedDocument.status,
-              templateVersion: job.generatedDocument.templateVersion,
-              type: job.generatedDocument.type,
-              updatedAt: job.generatedDocument.updatedAt,
-            }
-          : null,
-      }));
+      return jobs.map((job) => {
+        const generatedDocument = job.generatedDocument;
+        const canExposeDownloadAction = generatedDocument
+          ? isClient
+            ? clientDownloadStatuses.has(generatedDocument.status)
+            : staffDownloadStatuses.has(generatedDocument.status)
+          : false;
+
+        return {
+          ...job,
+          generatedDocument: generatedDocument
+            ? {
+                createdAt: generatedDocument.createdAt,
+                files: canExposeDownloadAction
+                  ? isClient
+                    ? serializeDownloadableFilesForClient(generatedDocument)
+                    : serializeDownloadableFilesForCrm(generatedDocument)
+                  : [],
+                id: generatedDocument.id,
+                organizationId: generatedDocument.organizationId,
+                status: generatedDocument.status,
+                templateVersion: generatedDocument.templateVersion,
+                type: generatedDocument.type,
+                updatedAt: generatedDocument.updatedAt,
+              }
+            : null,
+        };
+      });
     }),
 
   activeTemplates: protectedProcedure
