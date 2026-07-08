@@ -46,6 +46,7 @@ These must not be exposed to browser/client code.
 
 ## Notes
 
+- CRM CRUD adds no environment variables. Runtime access uses server-only `DATABASE_URL`; migration tooling uses server-only `DIRECT_URL`.
 - Use `.env.example` for names only.
 - Use `.env.local` for local development.
 - Use Vercel Project Settings for deployed environment values.

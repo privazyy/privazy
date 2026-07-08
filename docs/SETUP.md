@@ -110,3 +110,16 @@ npm run responsive:check
 ```
 
 `npm run responsive:check` expects the app to be available at `http://localhost:3000`. The responsive rules live in [RESPONSIVE.md](RESPONSIVE.md).
+
+## 7. CRM schema migration
+
+The lead/organization foundation is defined in `prisma/migrations/20260708223716_add_crm_leads_organizations_foundation/migration.sql`.
+
+Generate and validate locally before applying it:
+
+```bash
+npm run prisma:generate
+npx prisma validate
+```
+
+Apply it only to a disposable local database or an explicitly approved Supabase branch during review. This PR does not authorize a staging or production migration.

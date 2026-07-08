@@ -13,15 +13,8 @@ import type {
   Tone,
 } from "@/components/crm/crm-data";
 import { getPrisma } from "@/server/db/prisma";
-import { listIodCrmLeads } from "@/server/leads/iod";
 
 const defaultFilters = ["Wszystkie", "Aktywne", "Pilne", "Moje", "Do akceptacji"].map((label) => ({ label }));
-
-const ownerNames: Record<string, string> = {
-  AK: "Anna Kowalczyk",
-  JZ: "Joanna Zielińska",
-  MW: "Marek Wójcik",
-};
 
 const roleLabels: Record<UserRole, string> = {
   ADMIN: "Admin",
@@ -65,16 +58,41 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     auditLogs,
     counts,
   ] = await Promise.all([
-    listIodCrmLeads(100),
+    prisma.lead.findMany({
+      include: {
+        assignedTo: {
+          select: {
+            email: true,
+            name: true,
+          },
+        },
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
     prisma.organization.findMany({
       include: {
+        owner: {
+          select: {
+            email: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             auditLogs: true,
             clientProfiles: true,
+            contactPersons: true,
             formSubmissions: true,
             generatedDocuments: true,
             generationJobs: true,
+            leads: true,
           },
         },
       },
@@ -133,26 +151,28 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const leadRows: TableRow[] = leads.map((lead) => ({
     actionRoute: "lead-detail",
     cells: [
-      lead.source,
-      lead.industry,
-      lead.resultLabel,
-      formatCurrency(lead.value),
-      lead.stage,
-      lead.hot ? "Gorący" : "Standard",
-      ownerNames[lead.owner] ?? lead.owner,
-      lead.lastActivity,
+      leadSourceLabel(lead.source),
+      lead.industry ?? "-",
+      lead.fullName,
+      lead.estimatedValue ? formatCurrency(Number(lead.estimatedValue)) : "-",
+      leadStatusLabel(lead.status),
+      leadPriorityLabel(lead.priority),
+      lead.assignedTo?.name ?? lead.assignedTo?.email ?? "Nieprzypisany",
+      formatDateTime(lead.updatedAt),
       "",
     ],
-    primary: lead.company,
-    secondary: `ID ${lead.id.slice(0, 8)}`,
-    status: { label: lead.stage, tone: statusTone(lead.stage) },
-    tag: { label: lead.hot ? "Gorący" : "Standard", tone: lead.hot ? "danger" : "neutral" },
+    id: lead.id,
+    primary: lead.companyName,
+    secondary: `${lead.fullName} · ${lead.email}`,
+    status: { label: leadStatusLabel(lead.status), tone: statusTone(leadStatusLabel(lead.status)) },
+    tag: {
+      label: leadPriorityLabel(lead.priority),
+      tone: ["HIGH", "URGENT"].includes(lead.priority) ? "danger" : "neutral",
+    },
   }));
 
   const clientRows: TableRow[] = organizations.map((organization) => {
-    const hasActivity =
-      organization._count.formSubmissions + organization._count.generatedDocuments + organization._count.generationJobs > 0;
-    const status = hasActivity ? "Aktywny" : "Bez aktywności";
+    const status = organizationStatusLabel(organization.status);
 
     return {
       actionRoute: "client-detail",
@@ -160,15 +180,17 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         organization.nip ?? "-",
         organization.email ?? "-",
         organization.phone ?? "-",
-        String(organization._count.formSubmissions),
-        String(organization._count.generatedDocuments),
-        String(organization._count.generationJobs),
+        organization.industry ?? "-",
         status,
+        organization.owner?.name ?? organization.owner?.email ?? "Nieprzypisany",
+        formatDate(organization.createdAt),
+        String(organization._count.leads),
         "",
       ],
+      id: organization.id,
       primary: organization.name,
       secondary: [organization.city, organization.country].filter(Boolean).join(", ") || organization.id,
-      status: { label: status, tone: hasActivity ? "success" : "neutral" },
+      status: { label: status, tone: organization.status === "ACTIVE" ? "success" : organization.status === "ARCHIVED" ? "neutral" : "brand" },
     };
   });
 
@@ -305,8 +327,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const activeJobs = jobs.filter((job) => job.status === "PENDING" || job.status === "PROCESSING").length;
   const failedJobs = jobs.filter((job) => job.status === "FAILED").length;
   const activeTemplates = templates.filter((template) => template.status === "ACTIVE").length;
-  const hotLeads = leads.filter((lead) => lead.hot).length;
-  const pipelineValue = leads.reduce((sum, lead) => sum + lead.value, 0);
+  const hotLeads = leads.filter((lead) => ["HIGH", "URGENT"].includes(lead.priority)).length;
+  const pipelineValue = leads.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0);
 
   const lists: CrmDatabaseData["lists"] = {
     accounting: emptyListModule({
@@ -332,7 +354,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     }),
     clients: {
       action: "Dodaj klienta",
-      columns: ["Klient", "NIP", "E-mail", "Telefon", "Formularze", "Dokumenty", "Joby", "Status", ""],
+      columns: ["Organizacja", "NIP", "E-mail", "Telefon", "Branża", "Status", "Opiekun", "Utworzono", "Leady", ""],
       emptyMessage: "Brak organizacji w bazie danych.",
       icon: "Building2",
       kpis: [
@@ -363,16 +385,16 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     leads: {
       action: "Dodaj lead",
       columns: ["Firma / kontakt", "Źródło", "Branża", "Wynik checkera", "Wartość", "Status", "Priorytet", "Opiekun", "Ostatnia aktywność", ""],
-      emptyMessage: "Brak leadów IOD z formularza w bazie danych.",
+      emptyMessage: "Brak leadów w bazie danych.",
       icon: "UserPlus",
       kpis: [
-        { icon: "UserPlus", label: "Leady IOD", value: String(leads.length), tone: "brand" },
+        { icon: "UserPlus", label: "Wszystkie leady", value: String(leads.length), tone: "brand" },
         { icon: "Flame", label: "Gorące leady", value: String(hotLeads), tone: hotLeads > 0 ? "danger" : "neutral" },
         { icon: "Wallet", label: "Wartość pipeline", value: formatCompactCurrency(pipelineValue), tone: pipelineValue > 0 ? "success" : "neutral" },
         { icon: "Building2", label: "Firmy w CRM", value: String(counts.organizations), tone: "brand" },
       ],
       rows: leadRows,
-      subtitle: "Leady pochodzą z tabeli FormSubmission dla formularza checkera IOD.",
+      subtitle: "Leady ręczne i zgłoszenia z checkera IOD zapisane w tabeli Lead.",
       title: "Leady",
     },
     newsletter: emptyListModule({
@@ -834,6 +856,50 @@ function formatDateTime(value: Date) {
 function percentWidth(value: number, max: number) {
   if (max <= 0 || value <= 0) return "0%";
   return `${Math.max(8, Math.min(100, Math.round((value / max) * 100)))}%`;
+}
+
+function leadSourceLabel(source: string) {
+  return {
+    IOD_CHECKER: "Checker IOD",
+    CONTACT_FORM: "Formularz kontaktowy",
+    MANUAL: "Ręczny",
+    WEBSITE: "Strona WWW",
+    REFERRAL: "Polecenie",
+    OTHER: "Inne",
+  }[source] ?? source;
+}
+
+function leadStatusLabel(status: string) {
+  return {
+    NEW: "Nowy",
+    TO_CONTACT: "Do kontaktu",
+    CONTACTED: "Skontaktowano",
+    QUALIFIED: "Zakwalifikowany",
+    UNQUALIFIED: "Niezakwalifikowany",
+    PROPOSAL_SENT: "Oferta wysłana",
+    CONVERTED: "Przekonwertowany",
+    WON: "Wygrany",
+    LOST: "Utracony",
+    ARCHIVED: "Archiwalny",
+  }[status] ?? status;
+}
+
+function leadPriorityLabel(priority: string) {
+  return {
+    LOW: "Niski",
+    NORMAL: "Standard",
+    HIGH: "Wysoki",
+    URGENT: "Pilny",
+  }[priority] ?? priority;
+}
+
+function organizationStatusLabel(status: string) {
+  return {
+    PROSPECT: "Prospekt",
+    ACTIVE: "Aktywna",
+    INACTIVE: "Nieaktywna",
+    ARCHIVED: "Archiwalna",
+  }[status] ?? status;
 }
 
 function statusTone(label: string): Tone {
