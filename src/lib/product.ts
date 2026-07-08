@@ -7,40 +7,40 @@ export const privacyPolicyProduct = {
   canonicalPath: "/sklep/polityka-prywatnosci",
   url: "https://privazy.pl/sklep/polityka-prywatnosci",
   description:
-    "Polityka prywatności zgodna z RODO, dopasowana do Twojej branży i kanałów zbierania danych. Pliki .docx, PDF i HTML, aktualizacje przepisów, natychmiastowy dostęp.",
+    "Sandboxowa karta produktu polityki prywatności RODO. Ten etap pozwala utworzyć testowe zamówienie i płatność mock, ale nie dostarcza jeszcze dokumentu.",
   lead:
-    "Dopasowana do Twojej branży i kanałów zbierania danych. Nie szablon z internetu, tylko dokument gotowy do wdrożenia na stronie i w firmie.",
+    "Demonstracyjny produkt dokumentowy połączony z bezpiecznym checkoutem mock. Generator, weryfikacja prawna i dostarczenie plików pozostają poza tym etapem.",
   metaTitle: "Polityka prywatności RODO - wzór dopasowany do firmy | PRIVAZY",
   metaDescription:
-    "Polityka prywatności zgodna z RODO, dopasowana do Twojej branży i kanałów zbierania danych. Pliki .docx, PDF i HTML, aktualizacje przepisów, natychmiastowy dostęp. 190 zł jednorazowo.",
-  priceNote: "Cena netto · faktura VAT 23% · dożywotni dostęp do pliku",
-  guarantee: "14 dni gwarancji zwrotu pieniędzy",
-  paymentNote: "Bezpieczna płatność · BLIK, karta, przelew · natychmiastowy dostęp",
+    "Sandboxowa karta produktu polityki prywatności RODO z testową ceną i checkoutem mock. Bez realnej sprzedaży, płatności i dostarczenia dokumentu.",
+  priceNote: "Cena testowa netto · VAT liczony po stronie serwera · checkout sandbox",
+  guarantee: "Sandbox — brak realnej sprzedaży i pobrania środków",
+  paymentNote: "Jawna symulacja mock · bez karty, BLIK-a, przelewu i pobierania środków",
 } as const;
 
 export const productBundleItems = [
-  "Plik .docx (edytowalny)",
-  "PDF do podpisu",
-  "Wersja HTML na WWW",
-  "Instrukcja wdrożenia",
+  "Planowany format: edytowalny DOCX",
+  "Planowany format: PDF",
+  "Planowany format: HTML",
+  "Planowany materiał: instrukcja wdrożenia",
 ] as const;
 
 export const productTrustItems = [
   {
-    title: "Zgodne z RODO",
-    text: "oraz ustawą o ochronie danych",
+    title: "Zakres demonstracyjny",
+    text: "bez deklaracji zgodności dokumentu",
   },
   {
-    title: "Tworzone przez prawników",
-    text: "weryfikowane merytorycznie",
+    title: "Checkout mock",
+    text: "bez operatora i danych karty",
   },
   {
-    title: "Aktualizacje przepisów",
-    text: "przez 12 miesięcy",
+    title: "Cena serwerowa",
+    text: "netto, VAT i brutto z bazy",
   },
   {
-    title: "Natychmiastowy dostęp",
-    text: "pliki od razu po zakupie",
+    title: "Brak automatycznej generacji",
+    text: "po testowym PAID tylko status realizacji",
   },
 ] as const;
 
@@ -89,49 +89,49 @@ export const productContentItems = [
 
 export const productSteps = [
   {
-    title: "Opisz swoją firmę",
-    text: "Kilka pytań o branżę, kanały zbierania danych i używane narzędzia. Bez prawniczego żargonu.",
+    title: "Dodaj produkt testowy",
+    text: "Koszyk pobiera produkt i jego aktualną cenę z bazy, a nie z danych przeglądarki.",
   },
   {
-    title: "Generujemy dokument",
-    text: "System tworzy politykę dopasowaną do profilu Twojej działalności - gotową w kilka minut.",
+    title: "Utwórz zamówienie sandbox",
+    text: "Checkout waliduje dane i tworzy snapshot pozycji bez uruchamiania generatora dokumentu.",
   },
   {
-    title: "Pobierasz i wdrażasz",
-    text: "Pliki .docx, PDF i HTML trafiają do Ciebie od razu. Publikujesz dokument na stronie i w firmie.",
+    title: "Zasymuluj wynik płatności",
+    text: "Mock success lub failure aktualizuje statusy bez pobierania środków i bez dostarczenia plików.",
   },
 ] as const;
 
 export const productComparisonRows = [
   {
-    label: "Cena",
-    privazy: "190 zł",
-    template: "0-50 zł",
-    lawyer: "1 500-3 000 zł",
+    label: "Tryb",
+    privazy: "sandbox mock",
+    template: "plik statyczny",
+    lawyer: "usługa zewnętrzna",
   },
   {
-    label: "Czas",
-    privazy: "kilka minut",
-    template: "od ręki",
-    lawyer: "kilka dni",
+    label: "Płatność",
+    privazy: "bez środków",
+    template: "poza systemem",
+    lawyer: "poza systemem",
   },
   {
-    label: "Dopasowanie do firmy",
-    privazy: "tak",
+    label: "Generowanie dokumentu",
+    privazy: "nie w tym etapie",
     template: "nie",
-    lawyer: "tak",
+    lawyer: "nie dotyczy",
   },
   {
-    label: "Zgodność z aktualnymi przepisami",
-    privazy: "tak",
-    template: "ryzyko",
-    lawyer: "tak",
+    label: "Status po mock success",
+    privazy: "READY_FOR_INPUT z template",
+    template: "nie dotyczy",
+    lawyer: "nie dotyczy",
   },
   {
-    label: "Aktualizacje przepisów",
-    privazy: "tak",
-    template: "nie",
-    lawyer: "za dopłatą",
+    label: "Gotowość produkcyjna",
+    privazy: "nie",
+    template: "nie dotyczy",
+    lawyer: "poza oceną",
   },
 ] as const;
 
@@ -139,32 +139,32 @@ export const productFaqItems = [
   {
     question: "Czy dokument jest dopasowany do mojej branży?",
     answer:
-      "Tak. Przed pobraniem wypełniasz krótki profil firmy: branżę, kanały zbierania danych i używane narzędzia. Na tej podstawie generujemy politykę uwzględniającą Twoją działalność, a nie ogólny wzór dla wszystkich.",
+      "Nie w tym etapie. Ten PR obejmuje wyłącznie katalog, koszyk, checkout i płatność mock. Formularz danych i generator wymagają osobnego, bezpiecznego przepływu.",
   },
   {
     question: "W jakim formacie otrzymam dokument?",
     answer:
-      "Dostajesz edytowalny plik .docx, gotowy do podpisu PDF oraz wersję HTML do wklejenia bezpośrednio na stronę internetową. Do tego dołączamy krótką instrukcję wdrożenia.",
+      "Ten sandbox nie dostarcza dokumentu. DOCX, PDF, HTML i instrukcja są planowanymi formatami produktu, a nie wynikiem obecnej symulacji.",
   },
   {
     question: "Czy dostanę aktualizacje po zmianie przepisów?",
     answer:
-      "Tak. Przez 12 miesięcy od zakupu otrzymujesz zaktualizowane wersje dokumentu, jeśli zmienią się przepisy lub wytyczne UODO. Powiadomienie i nowy plik trafiają na Twój e-mail.",
+      "Nie ma jeszcze mechanizmu aktualizacji ani aktywnej usługi. Takie zobowiązanie wymaga osobnego zakresu produktowego i prawnego.",
   },
   {
     question: "Czy mogę samodzielnie edytować dokument?",
     answer:
-      "Oczywiście. Plik .docx jest w pełni edytowalny - możesz dostosować dane firmy, uzupełnić szczegóły lub rozszerzyć wybrane sekcje.",
+      "Sandbox nie generuje pliku. Edytowalny DOCX jest planowanym formatem przyszłego produktu.",
   },
   {
     question: "Czy zakup obejmuje politykę plików cookies?",
     answer:
-      "Tak. Polityka prywatności zawiera sekcję dotyczącą plików cookies i narzędzi analitycznych. Jeśli potrzebujesz rozbudowanej, osobnej polityki cookies, znajdziesz ją również w naszym sklepie.",
+      "Nie ma jeszcze realnego zakupu. Polityka cookies występuje w katalogu jako osobny produkt testowy.",
   },
   {
     question: "Czym to się różni od darmowego szablonu z internetu?",
     answer:
-      "Darmowe szablony są ogólne i często nieaktualne. Nie uwzględniają specyfiki Twojej firmy ani bieżących przepisów. Dokument PRIVAZY jest personalizowany, weryfikowany przez prawników i objęty aktualizacjami.",
+      "Obecny ekran demonstruje bezpieczny model commerce, a nie przewagę merytoryczną gotowego dokumentu. Personalizacja i review prawne nie są częścią tego PR.",
   },
 ] as const;
 
@@ -173,19 +173,12 @@ export const productJsonLd = {
   "@type": "Product",
   name: privacyPolicyProduct.name,
   description:
-    "Polityka prywatności zgodna z RODO, dopasowana do branży i kanałów zbierania danych firmy. Edytowalny plik .docx, PDF do podpisu oraz wersja HTML na stronę WWW.",
+    "Sandboxowa karta produktu polityki prywatności RODO z testowym checkoutem mock.",
   brand: {
     "@type": "Brand",
     name: "PRIVAZY",
   },
   category: "Dokumenty RODO / Polityki",
-  offers: {
-    "@type": "Offer",
-    price: String(privacyPolicyProduct.price),
-    priceCurrency: privacyPolicyProduct.currency,
-    availability: "https://schema.org/InStock",
-    url: privacyPolicyProduct.url,
-  },
 } as const;
 
 export const productFaqJsonLd = {
