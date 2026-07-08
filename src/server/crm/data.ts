@@ -1,6 +1,13 @@
 import "server-only";
 
-import type { DocumentGenerationStatus, DocumentTemplateStatus, GeneratedDocumentStatus, UserRole } from "@prisma/client";
+import type {
+  GeneratedDocumentStatus,
+  OrderStatus,
+  PaymentStatus,
+  ProductStatus,
+  ProductType,
+  UserRole,
+} from "@prisma/client";
 
 import type {
   CrmActivityItem,
@@ -31,24 +38,40 @@ const roleLabels: Record<UserRole, string> = {
   READ_ONLY: "Tylko odczyt",
 };
 
-const templateStatusLabels: Record<DocumentTemplateStatus, string> = {
-  ACTIVE: "Aktywny",
-  ARCHIVED: "Archiwum",
-  DRAFT: "Szkic",
-};
-
-const jobStatusLabels: Record<DocumentGenerationStatus, string> = {
-  COMPLETED: "Zakończony",
-  FAILED: "Błąd",
-  PENDING: "Oczekuje",
-  PROCESSING: "W trakcie",
-};
-
 const generatedStatusLabels: Record<GeneratedDocumentStatus, string> = {
   ARCHIVED: "Archiwum",
   DELIVERED: "Dostarczony",
   DRAFT: "Szkic",
   GENERATED: "Wygenerowany",
+};
+
+const productStatusLabels: Record<ProductStatus, string> = {
+  ACTIVE: "Aktywny",
+  ARCHIVED: "Archiwum",
+  DRAFT: "Szkic",
+};
+
+const productTypeLabels: Record<ProductType, string> = {
+  DOCUMENT: "Dokument",
+  PACKAGE: "Pakiet",
+  SERVICE: "Usługa",
+};
+
+const orderStatusLabels: Record<OrderStatus, string> = {
+  CANCELLED: "Anulowane",
+  DRAFT: "Szkic",
+  FAILED: "Płatność nieudana",
+  PAID: "Opłacone",
+  PENDING_PAYMENT: "Oczekuje na płatność",
+  REFUNDED: "Zwrócone",
+};
+
+const paymentStatusLabels: Record<PaymentStatus, string> = {
+  CANCELLED: "Anulowana",
+  CREATED: "Utworzona",
+  FAILED: "Nieudana",
+  PENDING: "Oczekuje",
+  SUCCEEDED: "Sukces mock",
 };
 
 export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
@@ -63,6 +86,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     generatedDocuments,
     formSubmissions,
     auditLogs,
+    products,
+    orders,
     counts,
   ] = await Promise.all([
     listIodCrmLeads(100),
@@ -123,6 +148,22 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       include: {
         organization: true,
         user: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.product.findMany({
+      orderBy: [{ productType: "asc" }, { status: "asc" }, { name: "asc" }],
+      take: 100,
+    }),
+    prisma.order.findMany({
+      include: {
+        billingProfile: true,
+        organization: true,
+        payments: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -193,43 +234,47 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     };
   });
 
-  const orderRows: TableRow[] = jobs.map((job) => {
-    const status = jobStatusLabels[job.status];
+  const productRows: TableRow[] = products.map((product) => {
+    const status = productStatusLabels[product.status];
+    const type = productTypeLabels[product.productType];
 
     return {
       cells: [
-        job.organization.name,
-        job.template.name,
+        type,
+        formatMoneyCents(product.priceNetCents, product.currency),
+        `${product.vatRateBps / 100}%`,
         status,
-        formatDate(job.createdAt),
-        job.completedAt ? formatDate(job.completedAt) : "-",
-        job.errorMessage ?? "-",
+        product.documentType ?? "-",
+        product.documentTemplateId ? `Template ${product.documentTemplateId.slice(0, 8)}` : "-",
+        formatDate(product.updatedAt),
         "",
       ],
-      primary: job.id,
-      secondary: job.template.type,
+      primary: product.name,
+      secondary: `/sklep/${product.slug}`,
       status: { label: status, tone: statusTone(status) },
-      tag: job.errorMessage ? { label: "Wymaga uwagi", tone: "danger" } : undefined,
+      tag: { label: type, tone: product.productType === "PACKAGE" ? "success" : "brand" },
     };
   });
 
-  const templateRows: TableRow[] = templates.map((template) => {
-    const status = templateStatusLabels[template.status];
+  const shopOrderRows: TableRow[] = orders.map((order) => {
+    const orderStatus = orderStatusLabels[order.status];
+    const paymentStatus = order.payments[0] ? paymentStatusLabels[order.payments[0].status] : "Brak";
 
     return {
-      actionRoute: "product-editor",
       cells: [
-        template.type,
-        `v${template.version}`,
-        status,
-        template.createdBy.name ?? template.createdBy.email,
-        template.approvedBy?.name ?? template.approvedBy?.email ?? "-",
-        formatDate(template.updatedAt),
+        order.organization?.name ?? order.billingProfile.name,
+        order.billingProfile.email,
+        orderStatus,
+        paymentStatus,
+        order.wantsInvoice ? "Intencja" : "Nie",
+        formatMoneyCents(order.totalGrossCents, order.currency),
+        formatDate(order.createdAt),
         "",
       ],
-      primary: template.name,
-      secondary: template.fileKey,
-      status: { label: status, tone: statusTone(status) },
+      primary: order.orderNumber,
+      secondary: order.email,
+      status: { label: orderStatus, tone: statusTone(orderStatus) },
+      tag: { label: paymentStatus, tone: statusTone(paymentStatus) },
     };
   });
 
@@ -310,11 +355,11 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
 
   const lists: CrmDatabaseData["lists"] = {
     accounting: emptyListModule({
-      action: "Wystaw fakturę",
-      columns: ["Nr faktury", "Klient", "Zamówienie", "Netto", "VAT", "Brutto", "Status", "Termin", "Opłacono"],
+      action: "Faktury niedostępne",
+      columns: ["Nr faktury", "Klient", "Zamówienie", "Netto", "VAT", "Brutto", "Status", "Wystawiono", ""],
       icon: "Wallet",
+      subtitle: "Model i provider faktur pozostają poza zakresem tego PR.",
       title: "Księgowość",
-      subtitle: "Brak tabel faktur i płatności w aktualnym schemacie Prisma.",
     }),
     blog: emptyListModule({
       action: "Nowy artykuł",
@@ -426,17 +471,17 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     },
     products: {
       action: "Dodaj produkt",
-      columns: ["Produkt", "Typ", "Wersja", "Status", "Utworzył", "Zatwierdził", "Aktualizacja", ""],
-      emptyMessage: "Brak szablonów dokumentów w bazie danych.",
+      columns: ["Produkt", "Typ", "Cena netto", "VAT", "Status", "DocumentType", "Template key", "Aktualizacja", ""],
+      emptyMessage: "Brak produktów sklepu w bazie danych.",
       icon: "Tag",
       kpis: [
-        { icon: "Tag", label: "Szablony", value: String(counts.templates), tone: "brand" },
-        { icon: "BadgeCheck", label: "Aktywne", value: String(activeTemplates), tone: "success" },
-        { icon: "FileText", label: "Dokumenty wygenerowane", value: String(counts.generatedDocuments), tone: "neutral" },
-        { icon: "Clock3", label: "Joby aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral" },
+        { icon: "Tag", label: "Produkty", value: String(counts.products), tone: "brand" },
+        { icon: "BadgeCheck", label: "Aktywne", value: String(products.filter((product) => product.status === "ACTIVE").length), tone: "success" },
+        { icon: "Package", label: "Pakiety", value: String(products.filter((product) => product.productType === "PACKAGE").length), tone: "brand" },
+        { icon: "FileText", label: "Dokumenty", value: String(products.filter((product) => product.productType === "DOCUMENT").length), tone: "neutral" },
       ],
-      rows: templateRows,
-      subtitle: "Produkty CRM są zasilane z szablonów dokumentów w bazie.",
+      rows: productRows,
+      subtitle: "Produkty sklepu z tabeli Product, bez pełnego workflow edycji CRM.",
       title: "Produkty / sklep",
     },
     requests: {
@@ -524,19 +569,19 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       title: "Organizacje",
     }),
     orders: makeModule({
-      action: "Nowe zamówienie",
-      columns: ["Job", "Klient", "Szablon", "Status", "Utworzono", "Zakończono", "Błąd", ""],
-      emptyMessage: "Brak jobów generowania dokumentów w bazie danych.",
+      action: "Podgląd zamówienia",
+      columns: ["Zamówienie", "Klient", "E-mail", "Status", "Płatność", "Faktura", "Brutto", "Utworzono", ""],
+      emptyMessage: "Brak zamówień sklepu w bazie danych.",
       icon: "ShoppingCart",
       kpis: [
-        { icon: "ShoppingCart", label: "Joby generowania", value: String(counts.generationJobs), tone: "brand" },
-        { icon: "Clock3", label: "Aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral" },
-        { icon: "BadgeCheck", label: "Zakończone", value: String(jobs.filter((job) => job.status === "COMPLETED").length), tone: "success" },
-        { icon: "TriangleAlert", label: "Błędy", value: String(failedJobs), tone: failedJobs > 0 ? "danger" : "neutral" },
+        { icon: "ShoppingCart", label: "Zamówienia", value: String(counts.orders), tone: "brand" },
+        { icon: "Clock3", label: "Oczekujące", value: String(orders.filter((order) => order.status === "PENDING_PAYMENT").length), tone: "warning" },
+        { icon: "BadgeCheck", label: "Opłacone", value: String(orders.filter((order) => order.status === "PAID").length), tone: "success" },
+        { icon: "TriangleAlert", label: "Nieudane płatności", value: String(orders.filter((order) => order.status === "FAILED").length), tone: orders.some((order) => order.status === "FAILED") ? "danger" : "neutral" },
       ],
       route: "orders",
-      rows: orderRows,
-      subtitle: "Zamówienia operacyjne odpowiadają jobom generowania dokumentów.",
+      rows: shopOrderRows,
+      subtitle: "Zamówienia i płatności mock z fundamentu sklepu sandbox. Faktury nie są generowane.",
       title: "Zamówienia",
     }),
     packages: makeModule({
@@ -546,8 +591,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       icon: "Package",
       kpis: lists.products.kpis ?? [],
       route: "packages",
-      rows: lists.products.rows,
-      subtitle: "Pakiety i produkty oparte o szablony dokumentów.",
+      rows: productRows.filter((row) => row.tag?.label === "Pakiet"),
+      subtitle: "Pakiety RODO z katalogu sklepu.",
       title: "Pakiety RODO",
     }),
     reports: makeEmptyModule("reports", "ChartColumn", "Raporty", "W aktualnym schemacie nie ma tabel zapisanych raportów.", "Nowy raport", [
@@ -689,7 +734,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         { icon: "FileText", label: "Dokumenty", value: String(counts.generatedDocuments), tone: "success", route: "documents" },
         { icon: "Clock3", label: "Joby aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral", route: "orders" },
         { icon: "TriangleAlert", label: "Joby z błędem", value: String(failedJobs), tone: failedJobs > 0 ? "danger" : "neutral", route: "documents" },
-        { icon: "Tag", label: "Szablony", value: String(counts.templates), tone: "brand", route: "products" },
+        { icon: "Tag", label: "Produkty", value: String(counts.products), tone: "brand", route: "products" },
         { icon: "Users", label: "Użytkownicy", value: String(counts.users), tone: "neutral", route: "employees" },
         { icon: "Activity", label: "Logi audytu", value: String(counts.auditLogs), tone: "neutral", route: "admin" },
         { icon: "Wallet", label: "Pipeline leadów", value: formatCompactCurrency(pipelineValue), tone: pipelineValue > 0 ? "success" : "neutral", route: "sales" },
@@ -729,6 +774,9 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       generatedDocumentsCount,
       formSubmissionsCount,
       auditLogsCount,
+      productsCount,
+      ordersCount,
+      paymentsCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
@@ -738,6 +786,9 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       prisma.generatedDocument.count(),
       prisma.formSubmission.count(),
       prisma.auditLog.count(),
+      prisma.product.count(),
+      prisma.order.count(),
+      prisma.payment.count(),
     ]);
 
     return {
@@ -746,6 +797,9 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       formSubmissions: formSubmissionsCount,
       generatedDocuments: generatedDocumentsCount,
       generationJobs,
+      orders: ordersCount,
+      payments: paymentsCount,
+      products: productsCount,
       organizations: organizationsCount,
       templates: templatesCount,
       users: usersCount,
@@ -806,6 +860,14 @@ function formatCurrency(value: number) {
     maximumFractionDigits: 0,
     style: "currency",
   }).format(value);
+}
+
+function formatMoneyCents(value: number, currency = "PLN") {
+  return new Intl.NumberFormat("pl-PL", {
+    currency,
+    minimumFractionDigits: 2,
+    style: "currency",
+  }).format(value / 100);
 }
 
 function formatCompactCurrency(value: number) {
