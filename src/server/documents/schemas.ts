@@ -9,6 +9,8 @@ export const documentGenerationInputSchema = z.object({
 
 export type DocumentGenerationInput = z.infer<typeof documentGenerationInputSchema>;
 
-export const documentGenerateApiSchema = documentGenerationInputSchema.extend({
-  idempotencyKey: z.string().optional(),
-});
+export const documentGenerateApiSchema = documentGenerationInputSchema
+  .omit({ createdById: true })
+  .extend({
+    idempotencyKey: z.string().trim().min(8).max(160).optional(),
+  });
