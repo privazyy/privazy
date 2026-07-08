@@ -18,4 +18,4 @@ Repo nie ma runnera testów. Do czasu jego dodania należy wykonać:
 | `ENABLE_LIVE_PAYMENTS` unset/false | Brak live flow. |
 | Response/error/log review | Brak raw Prisma errors, stack trace, payloadu webhooka i sekretów. |
 | Cross-order token | Obcy/nieprawidłowy token nie daje statusu ani symulacji. |
-| Invoice | Brak generowania; zapisana jest wyłącznie intencja. |
+| Invoice | Wykonaj osobny `INVOICE_SMOKE_CHECKLIST.md`; wyłącznie MOCK/SANDBOX. |

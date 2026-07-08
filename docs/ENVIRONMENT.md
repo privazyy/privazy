@@ -27,6 +27,10 @@ These must not be exposed to browser/client code.
 | `ENABLE_LIVE_PAYMENTS` | Reserved live-payment gate. Defaults to false; no live provider exists in this PR. |
 | `SHOP_CART_COOKIE_NAME` | Optional server-side override for the anonymous cart cookie name. |
 | `PAYMENT_MOCK_WEBHOOK_SECRET` | Optional HMAC secret for mock webhook tests; required by the mock webhook in production runtime. |
+| `ENABLE_INVOICES` | Enables authenticated mock invoice issuing. Defaults to false. |
+| `ENABLE_LIVE_INVOICES` | Reserved live invoice gate. Must remain false; no live provider exists. |
+| `INVOICE_PROVIDER` | Invoice provider selector. Only `mock` is implemented. |
+| `INVOICE_MODE` | Invoice mode selector. Only `mock` is implemented. |
 | `VERCEL_TOKEN` | Vercel automation token. |
 | `VERCEL_ORG_ID` | Vercel team or user ID. |
 | `VERCEL_PROJECT_ID` | Vercel project ID. |

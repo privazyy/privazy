@@ -26,6 +26,7 @@ ustawienia produkcyjny default jest wyłączony. `ENABLE_LIVE_PAYMENTS` pozostaj
 6. Mock provider tworzy idempotentny `Payment`.
 7. Symulacja/webhook tworzy `PaymentEvent`, porównuje kwotę i walutę, a dopiero potem może ustawić `SUCCEEDED` i `Order.PAID`.
 8. Template-linked `OrderItem` przechodzi do `READY_FOR_INPUT`; dokument nie jest generowany.
+9. Uwierzytelniony actor może osobno wystawić fakturę mock dla paid ordera z intencją faktury; webhook płatności nie wystawia jej automatycznie.
 
 Publiczne API ma walidację Zod, bezpieczne błędy i best-effort rate limit.
 Docelowy rozproszony rate limiter pozostaje follow-upem przed stagingiem.

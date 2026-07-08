@@ -306,11 +306,25 @@ export function OrderStatusView({ order }: { order: PublicOrderView }) {
 
             <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
               <h3 className="text-sm font-bold text-[var(--text-strong)]">Faktura</h3>
-              <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
-                {order.wantsInvoice
-                  ? "Zapisano intencję otrzymania faktury. Ten PR nie generuje faktur."
-                  : "Nie zaznaczono intencji otrzymania faktury."}
-              </p>
+              {order.invoice ? (
+                <div className="mt-3 grid gap-2">
+                  <Badge tone={order.invoice.status === "ISSUED" ? "success" : "warning"}>
+                    {invoiceStatusLabel(order.invoice.status)}
+                  </Badge>
+                  <p className="font-mono text-xs leading-5 text-[var(--text-muted)]">
+                    {order.invoice.invoiceNumber ?? "Numer zostanie nadany przez provider mock."}
+                  </p>
+                  <p className="text-xs font-semibold leading-5 text-[var(--warning)]">
+                    Faktura testowa / sandbox — nie jest dokumentem księgowym.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                  {order.wantsInvoice
+                    ? "Zapisano intencję. Faktura mock może zostać wystawiona dopiero po autoryzacji i weryfikacji opłaconego zamówienia."
+                    : "Nie zaznaczono intencji otrzymania faktury."}
+                </p>
+              )}
             </div>
           </aside>
         </div>
@@ -379,4 +393,17 @@ function paymentStatusLabel(status: string) {
   };
 
   return labels[status] ?? status;
+}
+
+function invoiceStatusLabel(status: string) {
+  return (
+    {
+      CANCELLED: "Faktura mock anulowana",
+      CORRECTED: "Faktura mock skorygowana",
+      DRAFT: "Szkic faktury mock",
+      FAILED: "Błąd faktury mock",
+      ISSUED: "Wystawiona faktura mock",
+      REQUESTED: "Faktura mock zlecona",
+    }[status] ?? status
+  );
 }

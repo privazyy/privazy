@@ -6,6 +6,7 @@ export async function listRecentShopOrders(limit = 50) {
   return getPrisma().order.findMany({
     include: {
       billingProfile: true,
+      invoice: true,
       items: {
         orderBy: { createdAt: "asc" },
       },
@@ -13,6 +14,20 @@ export async function listRecentShopOrders(limit = 50) {
       payments: {
         orderBy: { createdAt: "desc" },
       },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+}
+
+export async function listRecentShopInvoices(limit = 50) {
+  return getPrisma().invoice.findMany({
+    include: {
+      events: {
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      },
+      order: true,
     },
     orderBy: { createdAt: "desc" },
     take: limit,

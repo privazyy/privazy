@@ -126,6 +126,27 @@ enum PaymentEventStatus {
   IGNORED
 }
 
+enum InvoiceStatus {
+  DRAFT
+  REQUESTED
+  ISSUED
+  FAILED
+  CANCELLED
+  CORRECTED
+}
+
+enum InvoiceProvider {
+  MOCK
+  SANDBOX
+  LIVE
+}
+
+enum InvoiceMode {
+  MOCK
+  SANDBOX
+  LIVE
+}
+
 enum CouponStatus {
   ACTIVE
   DISABLED
@@ -151,6 +172,7 @@ model User {
   carts              Cart[]
   orders             Order[]
   billingProfiles    BillingProfile[]
+  invoices           Invoice[]
 }
 
 model Organization {
@@ -177,6 +199,7 @@ model Organization {
   carts              Cart[]
   orders             Order[]
   billingProfiles    BillingProfile[]
+  invoices           Invoice[]
 }
 
 model ClientProfile {
@@ -489,6 +512,7 @@ model Order {
   items          OrderItem[]
   payments       Payment[]
   paymentEvents  PaymentEvent[]
+  invoice        Invoice?
 
   @@index([status])
   @@index([paymentStatus])
@@ -578,5 +602,57 @@ model PaymentEvent {
   @@index([orderId])
   @@index([paymentId])
   @@index([status])
+  @@index([createdAt])
+}
+
+model Invoice {
+  id              String          @id @default(cuid())
+  orderId         String          @unique
+  organizationId  String?
+  userId          String?
+  invoiceNumber   String?         @unique
+  status          InvoiceStatus   @default(REQUESTED)
+  provider        InvoiceProvider @default(MOCK)
+  mode            InvoiceMode     @default(MOCK)
+  currency        String          @default("PLN")
+  totalNetCents   Int
+  totalVatCents   Int
+  discountCents   Int             @default(0)
+  totalGrossCents Int
+  buyerName       String
+  buyerEmail      String
+  buyerCompany    String?
+  buyerTaxId      String?
+  buyerAddress    Json
+  issuedAt        DateTime?
+  externalId      String?         @unique
+  externalUrl     String?
+  pdfFileId       String?
+  failureReason   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  events       InvoiceEvent[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model InvoiceEvent {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  eventType   String
+  externalId  String?  @unique
+  payloadHash String
+  createdAt   DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
   @@index([createdAt])
 }

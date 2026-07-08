@@ -15,9 +15,12 @@ Wszystkie kwoty są integerami w minor units (groszach), a VAT w basis points
 | `OrderItem` | Snapshot produktu i fulfillment; opcjonalne powiązanie z template. |
 | `Payment` | Idempotentna płatność MOCK/SANDBOX/LIVE; aktywny kod używa wyłącznie MOCK. |
 | `PaymentEvent` | Idempotency key, hash payloadu, kwota/waluta i wynik przetworzenia. |
+| `Invoice` | Jedna faktura mock na order; snapshot buyer data i totals. |
+| `InvoiceEvent` | Hash eventu providera bez raw payloadu. |
 
 Migracja jest addytywna. Włącza RLS, usuwa dostęp Data API dla
 `PUBLIC`/`anon`/`authenticated`, dodaje indeksy FK/statusów oraz constraints
 kwot, VAT i ilości. Nie została uruchomiona na produkcji.
 
-Model `Invoice` celowo nie istnieje w tym PR.
+Modele faktur są wyłącznie fundamentem MOCK/SANDBOX. Nie tworzą dokumentu
+księgowego ani produkcyjnej numeracji.

@@ -40,6 +40,13 @@ export type PublicOrderView = {
   };
   currency: string;
   discountCents: number;
+  invoice: {
+    invoiceNumber: string | null;
+    mode: string;
+    pdfAvailable: boolean;
+    provider: string;
+    status: string;
+  } | null;
   items: Array<{
     inputFormPath: string | null;
     productName: string;

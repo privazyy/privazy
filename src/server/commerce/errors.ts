@@ -4,9 +4,11 @@ export type CommerceErrorCode =
   | "checkout_disabled"
   | "conflict"
   | "forbidden"
+  | "invoice_disabled"
   | "invalid_input"
   | "not_found"
-  | "rate_limited";
+  | "rate_limited"
+  | "unauthorized";
 
 export class CommerceError extends Error {
   constructor(

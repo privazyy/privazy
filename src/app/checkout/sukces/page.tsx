@@ -30,6 +30,13 @@ export default async function CheckoutSuccessPage({
         <p className="text-base leading-7 text-[var(--text-body)]">
           {orderView ? `Testowe zamówienie ${orderView.orderNumber} ma status PAID. Nie pobrano żadnych środków.` : "Zapisano testowy wynik płatności. Nie pobrano żadnych środków."}
         </p>
+        {orderView?.wantsInvoice && (
+          <p className="text-sm leading-6 text-[var(--text-muted)]">
+            {orderView.invoice
+              ? `Status faktury testowej: ${orderView.invoice.status}. Dokument nie jest fakturą księgową.`
+              : "Zapisano intencję faktury. Jej wystawienie mock wymaga autoryzacji i nie tworzy dokumentu księgowego."}
+          </p>
+        )}
         <Button asChild className="mx-auto">
           <Link href={statusHref}>Przejdz do statusu zamowienia</Link>
         </Button>

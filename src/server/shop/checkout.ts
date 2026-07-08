@@ -268,6 +268,7 @@ export async function getPublicOrderView(orderNumber: string, token: string): Pr
   const order = await getPrisma().order.findFirst({
     include: {
       billingProfile: true,
+      invoice: true,
       items: {
         orderBy: { createdAt: "asc" },
       },
@@ -295,6 +296,15 @@ export async function getPublicOrderView(orderNumber: string, token: string): Pr
     },
     currency: order.currency,
     discountCents: order.discountCents,
+    invoice: order.invoice
+      ? {
+          invoiceNumber: order.invoice.invoiceNumber,
+          mode: order.invoice.mode,
+          pdfAvailable: Boolean(order.invoice.pdfFileId),
+          provider: order.invoice.provider,
+          status: order.invoice.status,
+        }
+      : null,
     items: order.items.map((item) => ({
       inputFormPath: item.inputFormPath,
       productName: item.productName,

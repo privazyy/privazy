@@ -8,7 +8,7 @@
 | Koszyk | Brak modeli i API. | Brak wiarygodnego stanu zamówienia. | `Cart`/`CartItem`, HttpOnly cookie i CRUD z Zod. | Dodano. |
 | Checkout | Brak API i zamówień. | Nie było ścieżki product -> order. | Walidowany checkout tworzący `Order`/`OrderItem`. | Dodano sandbox. |
 | Płatność | Brak providera, eventów i webhooka. | Klient mógłby w przyszłości sterować `PAID`. | Mock provider, zgodność kwoty/waluty i idempotentne eventy. | Dodano sandbox. |
-| Faktury | Brak modelu i providera. | Obietnica faktury nie miała implementacji. | Tylko zapis intencji; faktury w osobnym PR. | Nadal brak. |
+| Faktury | Brak modelu i providera. | Obietnica faktury nie miała implementacji. | Tylko zapis intencji; faktury w osobnym PR. | Follow-up dodał model/provider MOCK; live nadal brak. |
 | Dokumenty | Generator nie miał paid-order gate. | Fulfillment bez zakupu. | Po zgodnym sukcesie tylko template-linked `OrderItem` przechodzi do `READY_FOR_INPUT`. | Dodano hook; generator pozostaje osobnym P1. |
 | Data API | Brak commerce tables. | Nowe tabele w `public` mogłyby dostać automatyczne grants. | RLS oraz revoke dla `PUBLIC`, `anon`, `authenticated`. | Dodano w migracji. |
 

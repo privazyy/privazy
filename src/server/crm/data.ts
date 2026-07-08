@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   GeneratedDocumentStatus,
+  InvoiceStatus,
   OrderStatus,
   PaymentStatus,
   ProductStatus,
@@ -74,6 +75,15 @@ const paymentStatusLabels: Record<PaymentStatus, string> = {
   SUCCEEDED: "Sukces mock",
 };
 
+const invoiceStatusLabels: Record<InvoiceStatus, string> = {
+  CANCELLED: "Anulowana",
+  CORRECTED: "Skorygowana",
+  DRAFT: "Szkic",
+  FAILED: "Błąd",
+  ISSUED: "Wystawiona mock",
+  REQUESTED: "Zlecona",
+};
+
 export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const prisma = getPrisma();
 
@@ -88,6 +98,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     auditLogs,
     products,
     orders,
+    invoices,
     counts,
   ] = await Promise.all([
     listIodCrmLeads(100),
@@ -159,11 +170,19 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     prisma.order.findMany({
       include: {
         billingProfile: true,
+        invoice: true,
         organization: true,
         payments: {
           orderBy: { createdAt: "desc" },
           take: 1,
         },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.invoice.findMany({
+      include: {
+        order: true,
       },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -266,7 +285,11 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         order.billingProfile.email,
         orderStatus,
         paymentStatus,
-        order.wantsInvoice ? "Intencja" : "Nie",
+        order.invoice
+          ? invoiceStatusLabels[order.invoice.status]
+          : order.wantsInvoice
+            ? "Oczekuje"
+            : "Nie",
         formatMoneyCents(order.totalGrossCents, order.currency),
         formatDate(order.createdAt),
         "",
@@ -275,6 +298,27 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       secondary: order.email,
       status: { label: orderStatus, tone: statusTone(orderStatus) },
       tag: { label: paymentStatus, tone: statusTone(paymentStatus) },
+    };
+  });
+
+  const invoiceRows: TableRow[] = invoices.map((invoice) => {
+    const status = invoiceStatusLabels[invoice.status];
+
+    return {
+      cells: [
+        invoice.buyerCompany ?? invoice.buyerName,
+        invoice.order.orderNumber,
+        formatMoneyCents(invoice.totalNetCents, invoice.currency),
+        formatMoneyCents(invoice.totalVatCents, invoice.currency),
+        formatMoneyCents(invoice.totalGrossCents, invoice.currency),
+        status,
+        invoice.issuedAt ? formatDate(invoice.issuedAt) : "-",
+        "",
+      ],
+      primary: invoice.invoiceNumber ?? `MOCK REQUEST ${invoice.id.slice(0, 8)}`,
+      secondary: "Faktura testowa / sandbox — nie jest dokumentem księgowym",
+      status: { label: status, tone: statusTone(status) },
+      tag: { label: invoice.mode, tone: "warning" },
     };
   });
 
@@ -354,13 +398,20 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const pipelineValue = leads.reduce((sum, lead) => sum + lead.value, 0);
 
   const lists: CrmDatabaseData["lists"] = {
-    accounting: emptyListModule({
-      action: "Faktury niedostępne",
+    accounting: {
+      action: "Wystaw fakturę mock",
       columns: ["Nr faktury", "Klient", "Zamówienie", "Netto", "VAT", "Brutto", "Status", "Wystawiono", ""],
+      emptyMessage: "Brak faktur mock w bazie danych.",
       icon: "Wallet",
-      subtitle: "Model i provider faktur pozostają poza zakresem tego PR.",
+      kpis: [
+        { icon: "Wallet", label: "Faktury mock", value: String(counts.invoices), tone: "brand" },
+        { icon: "BadgeCheck", label: "Wystawione", value: String(invoices.filter((invoice) => invoice.status === "ISSUED").length), tone: "success" },
+        { icon: "Clock3", label: "Zlecone", value: String(invoices.filter((invoice) => invoice.status === "REQUESTED").length), tone: "warning" },
+      ],
+      rows: invoiceRows,
+      subtitle: "Wyłącznie faktury testowe MOCK/SANDBOX. Brak dokumentów księgowych i live providera.",
       title: "Księgowość",
-    }),
+    },
     blog: emptyListModule({
       action: "Nowy artykuł",
       columns: ["Artykuł", "Status", "Autor", "Główne słowo kl.", "SEO", "GEO", "Ruch", "Leady", ""],
@@ -581,7 +632,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       ],
       route: "orders",
       rows: shopOrderRows,
-      subtitle: "Zamówienia i płatności mock z fundamentu sklepu sandbox. Faktury nie są generowane.",
+      subtitle: "Zamówienia, płatności oraz statusy faktur mock z fundamentu commerce sandbox.",
       title: "Zamówienia",
     }),
     packages: makeModule({
@@ -777,6 +828,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       productsCount,
       ordersCount,
       paymentsCount,
+      invoicesCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
@@ -789,6 +841,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       prisma.product.count(),
       prisma.order.count(),
       prisma.payment.count(),
+      prisma.invoice.count(),
     ]);
 
     return {
@@ -799,6 +852,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       generationJobs,
       orders: ordersCount,
       payments: paymentsCount,
+      invoices: invoicesCount,
       products: productsCount,
       organizations: organizationsCount,
       templates: templatesCount,
