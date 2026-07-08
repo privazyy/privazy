@@ -8,4 +8,4 @@
 | P1-DOC-FILEMODEL | Per-file status/client visibility is missing. | P1 | OPEN | Current schema has document-level status only. Follow-up should add normalized file records when lifecycle needs it. |
 | P1-TESTS | Automated cross-tenant download tests are missing. | P1 | OPEN | No test runner exists on `main`; smoke checklist added. |
 
-Staging readiness remains NO or CONDITIONAL after this PR. Production readiness remains NO.
+Staging readiness remains NO after this PR. Production readiness remains NO.
