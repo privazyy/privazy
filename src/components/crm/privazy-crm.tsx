@@ -35,6 +35,7 @@ const detailRoutes = new Set<CrmRoute>([
   "doc-review",
   "document-job-detail",
   "generated-document-detail",
+  "document-input-detail",
   "breach-detail",
   "request-detail",
   "outsourcing-detail",
@@ -916,6 +917,7 @@ export function PrivazyCrm({ actorName, actorRole, canMutate, data, initialRoute
       clients: data.lists.clients,
       documents: data.lists.documents,
       invoices: data.lists.invoices,
+      "document-inputs": data.lists.documentInputs,
       newsletter: data.lists.newsletter,
       outsourcing: data.lists.outsourcing,
       payments: data.lists.payments,
@@ -933,6 +935,7 @@ export function PrivazyCrm({ actorName, actorRole, canMutate, data, initialRoute
     if (route === "document-job-detail" && selectedRow) return <RecordDetail backLabel="Wroc do jobow" columns={data.modules["document-jobs"]?.columns ?? []} icon="FileCog" onBack={() => setRouteAndClose("document-jobs")} record={selectedRow} title="Szczegoly joba dokumentu" />;
     if (route === "generated-document-detail" && selectedRow) return <RecordDetail backLabel="Wroc do dokumentow" columns={data.lists.documents.columns} icon="FileText" onBack={() => setRouteAndClose("documents")} record={selectedRow} title="Szczegoly dokumentu" />;
     if (route === "doc-review" && selectedRow) return <RecordDetail backLabel="Wróć do dokumentów" columns={data.lists.documents.columns} icon="FileSearch" onBack={() => setRouteAndClose("documents")} record={selectedRow} title="Szczegóły dokumentu" />;
+    if (route === "document-input-detail" && selectedRow) return <RecordDetail backLabel="Wróć do formularzy" columns={data.lists.documentInputs.columns} icon="FileInput" onBack={() => setRouteAndClose("document-inputs")} record={selectedRow} title="Szczegóły formularza dokumentu" />;
     if (route === "breach-detail" && selectedRow) return <RecordDetail backLabel="Wróć do naruszeń" columns={data.lists.breaches.columns} icon="TriangleAlert" onBack={() => setRouteAndClose("breaches")} record={selectedRow} title="Szczegóły naruszenia" />;
     if (route === "request-detail" && selectedRow) return <RecordDetail backLabel="Wróć do żądań" columns={data.lists.requests.columns} icon="UserCog" onBack={() => setRouteAndClose("requests")} record={selectedRow} title="Szczegóły żądania" />;
     if (route === "outsourcing-detail" && selectedRow) return <RecordDetail backLabel="Wróć do outsourcingu" columns={data.lists.outsourcing.columns} icon="ShieldCheck" onBack={() => setRouteAndClose("outsourcing")} record={selectedRow} title="Szczegóły abonamentu" />;
@@ -946,6 +949,7 @@ export function PrivazyCrm({ actorName, actorRole, canMutate, data, initialRoute
     if (route === "document-job-detail") return <MissingRecordDetail icon="FileCog" onBack={() => setRouteAndClose("document-jobs")} title="Szczegoly joba dokumentu" />;
     if (route === "generated-document-detail") return <MissingRecordDetail icon="FileText" onBack={() => setRouteAndClose("documents")} title="Szczegoly dokumentu" />;
     if (route === "doc-review") return <MissingRecordDetail icon="FileSearch" onBack={() => setRouteAndClose("documents")} title="Szczegóły dokumentu" />;
+    if (route === "document-input-detail") return <MissingRecordDetail icon="FileInput" onBack={() => setRouteAndClose("document-inputs")} title="Szczegóły formularza dokumentu" />;
     if (route === "breach-detail") return <MissingRecordDetail icon="TriangleAlert" onBack={() => setRouteAndClose("breaches")} title="Szczegóły naruszenia" />;
     if (route === "request-detail") return <MissingRecordDetail icon="UserCog" onBack={() => setRouteAndClose("requests")} title="Szczegóły żądania" />;
     if (route === "outsourcing-detail") return <MissingRecordDetail icon="ShieldCheck" onBack={() => setRouteAndClose("outsourcing")} title="Szczegóły abonamentu" />;

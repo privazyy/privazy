@@ -80,13 +80,20 @@ enum OrderStatus {
 }
 
 enum FulfillmentStatus {
+  NOT_STARTED
+  READY_FOR_INPUT
   WAITING_FOR_PAYMENT
   WAITING_FOR_INPUT
+  INPUT_IN_PROGRESS
+  INPUT_SUBMITTED
+  GENERATION_PENDING
+  GENERATED
   IN_PROGRESS
   IN_REVIEW
   READY
   DELIVERED
   CANCELLED
+  FAILED
 }
 
 enum PaymentStatus {
@@ -127,6 +134,11 @@ enum DocumentInputStatus {
   SUBMITTED
   ACCEPTED
   REJECTED
+  LOCKED
+  GENERATION_PENDING
+  GENERATED
+  NEEDS_CORRECTION
+  CANCELLED
 }
 
 enum GeneratedDocumentReviewStatus {
@@ -205,6 +217,9 @@ model User {
   generatedDocuments GeneratedDocument[]
   auditLogs          AuditLog[]
   formSubmissions    FormSubmission[]
+  createdInputs      DocumentInput[]         @relation("DocumentInputCreatedBy")
+  updatedInputs      DocumentInput[]         @relation("DocumentInputUpdatedBy")
+  submittedInputs    DocumentInput[]         @relation("DocumentInputSubmittedBy")
   assignedLeads      Lead[]                  @relation("LeadAssignedTo")
   ownedOrganizations Organization[]          @relation("OrganizationOwner")
   authoredCrmNotes   CrmNote[]
@@ -214,7 +229,6 @@ model User {
   reviewedPayments   Payment[]               @relation("PaymentReviewedBy")
   requestedInvoices  Invoice[]               @relation("InvoiceRequestedBy")
   reviewedDocuments  GeneratedDocument[]     @relation("GeneratedDocumentReviewedBy")
-  documentInputs     DocumentInput[]
   documentDownloads  DocumentDownload[]
 }
 
@@ -250,6 +264,7 @@ model Organization {
   crmNotes           CrmNote[]
   crmTasks           CrmTask[]
   orders             Order[]
+  orderItems         OrderItem[]
   documentInputs     DocumentInput[]
   documentDownloads  DocumentDownload[]
 
@@ -288,6 +303,9 @@ model DocumentTemplate {
 
   createdBy          User                    @relation("TemplateCreatedBy", fields: [createdById], references: [id])
   approvedBy         User?                   @relation("TemplateApprovedBy", fields: [approvedById], references: [id])
+  products           Product[]
+  orderItems         OrderItem[]
+  documentInputs     DocumentInput[]
   generationJobs     DocumentGenerationJob[]
   generatedDocuments GeneratedDocument[]
 
@@ -410,9 +428,12 @@ model FormSubmission {
 model Product {
   id           String        @id @default(cuid())
   sku          String        @unique
+  slug         String        @unique
   name         String
+  description  String?
   kind         ProductKind   @default(DOCUMENT)
   status       ProductStatus @default(ACTIVE)
+  templateId   String?
   documentType DocumentType?
   priceCents   Int
   vatRateBps   Int           @default(2300)
@@ -420,10 +441,13 @@ model Product {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  orderItems OrderItem[]
+  template       DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  orderItems     OrderItem[]
+  documentInputs DocumentInput[]
 
   @@index([status, kind])
   @@index([documentType])
+  @@index([templateId])
 }
 
 model Order {
@@ -446,6 +470,7 @@ model Order {
   currency          String            @default("PLN")
   source            String            @default("CRM")
   internalNote      String?
+  paidAt            DateTime?
   cancelledAt       DateTime?
   archivedAt        DateTime?
   createdAt         DateTime          @default(now())
@@ -474,7 +499,9 @@ model Order {
 model OrderItem {
   id                String            @id @default(cuid())
   orderId           String
+  organizationId    String
   productId         String?
+  templateId        String?
   name              String
   documentType      DocumentType?
   quantity          Int               @default(1)
@@ -483,18 +510,22 @@ model OrderItem {
   totalNetCents     Int
   totalVatCents     Int
   totalGrossCents   Int
-  fulfillmentStatus FulfillmentStatus @default(WAITING_FOR_INPUT)
+  fulfillmentStatus FulfillmentStatus @default(NOT_STARTED)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
   order              Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   product            Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
-  documentInputs     DocumentInput[]
+  template           DocumentTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  documentInput      DocumentInput?
   generationJobs     DocumentGenerationJob[]
   generatedDocuments GeneratedDocument[]
 
   @@index([orderId])
+  @@index([organizationId])
   @@index([productId])
+  @@index([templateId])
   @@index([documentType])
   @@index([fulfillmentStatus])
 }
@@ -574,27 +605,42 @@ model Invoice {
 }
 
 model DocumentInput {
-  id             String              @id @default(cuid())
-  organizationId String
-  orderId        String?
-  orderItemId    String?
-  status         DocumentInputStatus @default(DRAFT)
-  data           Json
-  submittedById  String?
-  submittedAt    DateTime?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id                String              @id @default(cuid())
+  organizationId    String
+  orderId           String?
+  orderItemId       String              @unique
+  productId         String?
+  templateId        String
+  templateVersion   Int?
+  documentType      DocumentType
+  status            DocumentInputStatus @default(DRAFT)
+  dataJson          Json
+  validationSummary Json?
+  clientRevision    Int                 @default(1)
+  createdById       String
+  updatedById       String?
+  submittedById     String?
+  submittedAt       DateTime?
+  lockedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   order          Order?                  @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  orderItem      OrderItem?              @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
-  submittedBy    User?                   @relation(fields: [submittedById], references: [id], onDelete: SetNull)
+  orderItem      OrderItem               @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  product        Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  template       DocumentTemplate        @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  createdBy      User                    @relation("DocumentInputCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User?                   @relation("DocumentInputUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  submittedBy    User?                   @relation("DocumentInputSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
   generationJobs DocumentGenerationJob[]
 
-  @@index([organizationId, createdAt])
+  @@index([organizationId])
   @@index([orderId])
-  @@index([orderItemId])
-  @@index([status])
+  @@index([productId])
+  @@index([templateId])
+  @@index([status, updatedAt])
+  @@index([createdById])
 }
 
 model GeneratedDocumentFile {

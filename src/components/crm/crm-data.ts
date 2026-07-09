@@ -18,6 +18,8 @@ export type CrmRoute =
   | "document-jobs"
   | "document-job-detail"
   | "generated-document-detail"
+  | "document-inputs"
+  | "document-input-detail"
   | "packages"
   | "products"
   | "product-editor"
@@ -152,6 +154,7 @@ export type CrmDatabaseData = {
     clients: CrmListModule;
     documents: CrmListModule;
     invoices: CrmListModule;
+    documentInputs: CrmListModule;
     leads: CrmListModule;
     newsletter: CrmListModule;
     outsourcing: CrmListModule;
@@ -181,6 +184,7 @@ export const navGroups: NavGroup[] = [
       { route: "orders", label: "Zamówienia", icon: "ShoppingCart" },
       { route: "payments", label: "Płatności", icon: "CreditCard" },
       { route: "invoices", label: "Faktury", icon: "ReceiptText" },
+      { route: "document-inputs", label: "Formularze dokumentów", icon: "FileInput" },
       { route: "document-jobs", label: "Joby dokumentów", icon: "FileCog" },
       { route: "documents", label: "Dokumenty", icon: "FileText" },
     ],
@@ -199,6 +203,7 @@ export const routeAliases: Partial<Record<CrmRoute, CrmRoute>> = {
   "doc-review": "documents",
   "document-job-detail": "document-jobs",
   "generated-document-detail": "documents",
+  "document-input-detail": "document-inputs",
   "breach-detail": "breaches",
   "request-detail": "requests",
   "outsourcing-detail": "outsourcing",
