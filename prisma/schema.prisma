@@ -59,6 +59,47 @@ enum FormSubmissionStatus {
   FAILED
 }
 
+enum ProductStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProductKind {
+  DOCUMENT
+  SERVICE
+  PACKAGE
+}
+
+enum OrderPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderItemFulfillmentStatus {
+  NOT_STARTED
+  READY_FOR_INPUT
+  INPUT_IN_PROGRESS
+  INPUT_SUBMITTED
+  GENERATION_PENDING
+  GENERATED
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+enum DocumentInputStatus {
+  DRAFT
+  SUBMITTED
+  LOCKED
+  GENERATION_PENDING
+  GENERATED
+  NEEDS_CORRECTION
+  CANCELLED
+}
+
 enum LeadSource {
   IOD_CHECKER
   CONTACT_FORM
@@ -122,6 +163,11 @@ model User {
   generatedDocuments GeneratedDocument[]
   auditLogs          AuditLog[]
   formSubmissions    FormSubmission[]
+  orders             Order[]
+  orderItems         OrderItem[]
+  createdInputs      DocumentInput[]         @relation("DocumentInputCreatedBy")
+  updatedInputs      DocumentInput[]         @relation("DocumentInputUpdatedBy")
+  submittedInputs    DocumentInput[]         @relation("DocumentInputSubmittedBy")
   assignedLeads      Lead[]                  @relation("LeadAssignedTo")
   ownedOrganizations Organization[]          @relation("OrganizationOwner")
   authoredCrmNotes   CrmNote[]
@@ -156,6 +202,9 @@ model Organization {
   generatedDocuments GeneratedDocument[]
   auditLogs          AuditLog[]
   formSubmissions    FormSubmission[]
+  orders             Order[]
+  orderItems         OrderItem[]
+  documentInputs     DocumentInput[]
   leads              Lead[]
   contactPersons     ContactPerson[]
   crmNotes           CrmNote[]
@@ -196,6 +245,9 @@ model DocumentTemplate {
 
   createdBy          User                    @relation("TemplateCreatedBy", fields: [createdById], references: [id])
   approvedBy         User?                   @relation("TemplateApprovedBy", fields: [approvedById], references: [id])
+  products           Product[]
+  orderItems         OrderItem[]
+  documentInputs     DocumentInput[]
   generationJobs     DocumentGenerationJob[]
   generatedDocuments GeneratedDocument[]
 
@@ -203,25 +255,147 @@ model DocumentTemplate {
   @@index([status])
 }
 
+model Product {
+  id            String        @id @default(cuid())
+  kind          ProductKind   @default(DOCUMENT)
+  status        ProductStatus @default(ACTIVE)
+  name          String
+  slug          String        @unique
+  description   String?
+  templateId    String?
+  documentType  DocumentType?
+  priceNetCents Int           @default(0)
+  vatRateBps    Int           @default(2300)
+  currency      String        @default("PLN")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  template       DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  orderItems     OrderItem[]
+  documentInputs DocumentInput[]
+
+  @@index([kind, status])
+  @@index([templateId])
+}
+
+model Order {
+  id              String             @id @default(cuid())
+  orderNumber     String             @unique
+  organizationId  String
+  buyerEmail      String
+  buyerName       String
+  paymentStatus   OrderPaymentStatus @default(PENDING)
+  currency        String             @default("PLN")
+  totalNetCents   Int                @default(0)
+  totalVatCents   Int                @default(0)
+  totalGrossCents Int                @default(0)
+  createdById     String?
+  paidAt          DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy      User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items          OrderItem[]
+  documentInputs DocumentInput[]
+
+  @@index([organizationId])
+  @@index([paymentStatus, createdAt])
+  @@index([createdById])
+}
+
+model OrderItem {
+  id                String                     @id @default(cuid())
+  orderId           String
+  organizationId    String
+  productId         String?
+  templateId        String?
+  documentType      DocumentType?
+  name              String
+  quantity          Int                        @default(1)
+  unitNetCents      Int                        @default(0)
+  vatRateBps        Int                        @default(2300)
+  totalGrossCents   Int                        @default(0)
+  fulfillmentStatus OrderItemFulfillmentStatus @default(NOT_STARTED)
+  createdById       String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  order         Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  product       Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  template      DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy     User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  documentInput DocumentInput?
+
+  @@index([orderId])
+  @@index([organizationId])
+  @@index([productId])
+  @@index([templateId])
+  @@index([fulfillmentStatus])
+}
+
+model DocumentInput {
+  id                String              @id @default(cuid())
+  organizationId    String
+  orderId           String?
+  orderItemId       String              @unique
+  productId         String?
+  templateId        String
+  templateVersion   Int?
+  documentType      DocumentType
+  status            DocumentInputStatus @default(DRAFT)
+  dataJson          Json
+  validationSummary Json?
+  clientRevision    Int                 @default(1)
+  createdById       String
+  updatedById       String?
+  submittedById     String?
+  submittedAt       DateTime?
+  lockedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  order          Order?                  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderItem      OrderItem               @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  product        Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  template       DocumentTemplate        @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  createdBy      User                    @relation("DocumentInputCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User?                   @relation("DocumentInputUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  submittedBy    User?                   @relation("DocumentInputSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  generationJobs DocumentGenerationJob[]
+
+  @@index([organizationId])
+  @@index([orderId])
+  @@index([productId])
+  @@index([templateId])
+  @@index([status, updatedAt])
+  @@index([createdById])
+}
+
 model DocumentGenerationJob {
-  id             String                   @id @default(cuid())
-  organizationId String
-  templateId     String
-  status         DocumentGenerationStatus @default(PENDING)
-  inputSnapshot  Json
-  errorMessage   String?
-  createdById    String
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  completedAt    DateTime?
+  id              String                   @id @default(cuid())
+  organizationId  String
+  templateId      String
+  documentInputId String?
+  status          DocumentGenerationStatus @default(PENDING)
+  inputSnapshot   Json
+  errorMessage    String?
+  createdById     String
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  completedAt     DateTime?
 
   organization      Organization       @relation(fields: [organizationId], references: [id])
   template          DocumentTemplate   @relation(fields: [templateId], references: [id])
+  documentInput     DocumentInput?     @relation(fields: [documentInputId], references: [id], onDelete: SetNull)
   createdBy         User               @relation(fields: [createdById], references: [id])
   generatedDocument GeneratedDocument?
 
   @@index([organizationId])
   @@index([templateId])
+  @@index([documentInputId])
   @@index([status])
 }
 
@@ -292,31 +466,31 @@ model FormSubmission {
 }
 
 model Lead {
-  id               String       @id @default(cuid())
-  source           LeadSource   @default(MANUAL)
-  status           LeadStatus   @default(NEW)
-  priority         LeadPriority @default(NORMAL)
-  companyName      String
-  fullName         String
-  email            String
-  phone            String?
-  nip              String?
-  industry         String?
-  companySize      String?
-  estimatedValue   Decimal?     @db.Decimal(12, 2)
-  consentMarketing Boolean      @default(false)
-  consentPrivacy   Boolean      @default(false)
-  consentContact   Boolean      @default(false)
-  iodCheckerResult String?
+  id                        String       @id @default(cuid())
+  source                    LeadSource   @default(MANUAL)
+  status                    LeadStatus   @default(NEW)
+  priority                  LeadPriority @default(NORMAL)
+  companyName               String
+  fullName                  String
+  email                     String
+  phone                     String?
+  nip                       String?
+  industry                  String?
+  companySize               String?
+  estimatedValue            Decimal?     @db.Decimal(12, 2)
+  consentMarketing          Boolean      @default(false)
+  consentPrivacy            Boolean      @default(false)
+  consentContact            Boolean      @default(false)
+  iodCheckerResult          String?
   iodCheckerAnswersSnapshot Json?
-  sourceDetails    Json?
-  assignedToId     String?
-  organizationId   String?
-  formSubmissionId String?      @unique
-  convertedAt      DateTime?
-  lastContactedAt  DateTime?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  sourceDetails             Json?
+  assignedToId              String?
+  organizationId            String?
+  formSubmissionId          String?      @unique
+  convertedAt               DateTime?
+  lastContactedAt           DateTime?
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
 
   assignedTo     User?           @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   organization   Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)

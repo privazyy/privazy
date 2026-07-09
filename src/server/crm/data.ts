@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { DocumentGenerationStatus, DocumentTemplateStatus, GeneratedDocumentStatus, UserRole } from "@prisma/client";
+import type { DocumentGenerationStatus, DocumentInputStatus, DocumentTemplateStatus, GeneratedDocumentStatus, UserRole } from "@prisma/client";
 
 import type {
   CrmActivityItem,
@@ -44,6 +44,16 @@ const generatedStatusLabels: Record<GeneratedDocumentStatus, string> = {
   GENERATED: "Wygenerowany",
 };
 
+const documentInputStatusLabels: Record<DocumentInputStatus, string> = {
+  CANCELLED: "Anulowany",
+  DRAFT: "Draft",
+  GENERATED: "Wygenerowany",
+  GENERATION_PENDING: "Czeka na job",
+  LOCKED: "Zablokowany",
+  NEEDS_CORRECTION: "Do poprawy",
+  SUBMITTED: "Wysłany",
+};
+
 export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const prisma = getPrisma();
 
@@ -53,6 +63,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     users,
     templates,
     jobs,
+    documentInputs,
     generatedDocuments,
     formSubmissions,
     auditLogs,
@@ -118,6 +129,18 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         template: true,
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.documentInput.findMany({
+      include: {
+        organization: true,
+        order: true,
+        orderItem: true,
+        template: true,
+        submittedBy: { select: { email: true, name: true } },
+        _count: { select: { generationJobs: true } },
+      },
+      orderBy: { updatedAt: "desc" },
       take: 100,
     }),
     prisma.generatedDocument.findMany({
@@ -215,6 +238,32 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     };
   });
 
+  const documentInputRows: TableRow[] = documentInputs.map((input) => {
+    const status = documentInputStatusLabels[input.status];
+
+    return {
+      actionRoute: "document-input-detail",
+      cells: [
+        input.organization.name,
+        input.order?.orderNumber ?? "-",
+        input.orderItem.name,
+        input.template.name,
+        input.documentType,
+        status,
+        input.validationSummary ? "Tak" : "-",
+        String(input._count.generationJobs),
+        input.submittedBy?.name ?? input.submittedBy?.email ?? "-",
+        formatDateTime(input.updatedAt),
+        "",
+      ],
+      id: input.id,
+      primary: input.orderItem.name,
+      secondary: input.organization.email ?? input.organization.id,
+      status: { label: status, tone: statusTone(status) },
+      tag: input.status === "NEEDS_CORRECTION" ? { label: "Wymaga klienta", tone: "warning" } : undefined,
+    };
+  });
+
   const orderRows: TableRow[] = jobs.map((job) => {
     const status = jobStatusLabels[job.status];
 
@@ -250,7 +299,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       primary: template.name,
-      secondary: template.fileKey,
+      secondary: template.id,
       status: { label: status, tone: statusTone(status) },
     };
   });
@@ -381,6 +430,21 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       rows: documentRows,
       subtitle: "Wygenerowane dokumenty zapisane w tabeli GeneratedDocument.",
       title: "Dokumenty",
+    },
+    documentInputs: {
+      action: "Otwórz formularze",
+      columns: ["Formularz", "Klient", "Zamówienie", "Pozycja", "Szablon", "Typ", "Status", "Walidacja", "Joby", "Wysłał", "Aktualizacja", ""],
+      emptyMessage: "Brak formularzy danych do dokumentów w bazie.",
+      icon: "FileInput",
+      kpis: [
+        { icon: "FileInput", label: "Formularze", value: String(counts.documentInputs), tone: "brand" },
+        { icon: "Clock3", label: "Drafty", value: String(documentInputs.filter((input) => input.status === "DRAFT").length), tone: "neutral" },
+        { icon: "BadgeCheck", label: "Wysłane", value: String(documentInputs.filter((input) => input.status === "SUBMITTED" || input.status === "GENERATION_PENDING").length), tone: "success" },
+        { icon: "ShieldAlert", label: "Do poprawy", value: String(documentInputs.filter((input) => input.status === "NEEDS_CORRECTION").length), tone: "warning" },
+      ],
+      rows: documentInputRows,
+      subtitle: "Bezpieczne formularze klienta powiązane z OrderItem i organizacją.",
+      title: "Formularze dokumentów",
     },
     leads: {
       action: "Dodaj lead",
@@ -749,6 +813,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       templatesCount,
       generationJobs,
       generatedDocumentsCount,
+      documentInputsCount,
       formSubmissionsCount,
       auditLogsCount,
     ] = await Promise.all([
@@ -758,6 +823,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       prisma.documentTemplate.count(),
       prisma.documentGenerationJob.count(),
       prisma.generatedDocument.count(),
+      prisma.documentInput.count(),
       prisma.formSubmission.count(),
       prisma.auditLog.count(),
     ]);
@@ -768,6 +834,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       formSubmissions: formSubmissionsCount,
       generatedDocuments: generatedDocumentsCount,
       generationJobs,
+      documentInputs: documentInputsCount,
       organizations: organizationsCount,
       templates: templatesCount,
       users: usersCount,

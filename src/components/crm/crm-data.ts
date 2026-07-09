@@ -10,6 +10,8 @@ export type CrmRoute =
   | "orders"
   | "documents"
   | "doc-review"
+  | "document-inputs"
+  | "document-input-detail"
   | "packages"
   | "products"
   | "product-editor"
@@ -143,6 +145,7 @@ export type CrmDatabaseData = {
     breaches: CrmListModule;
     clients: CrmListModule;
     documents: CrmListModule;
+    documentInputs: CrmListModule;
     leads: CrmListModule;
     newsletter: CrmListModule;
     outsourcing: CrmListModule;
@@ -172,6 +175,7 @@ export const navGroups: NavGroup[] = [
       { route: "orgs", label: "Organizacje", icon: "Network" },
       { route: "orders", label: "Zamówienia", icon: "ShoppingCart" },
       { route: "documents", label: "Dokumenty", icon: "FileText", badge: "8" },
+      { route: "document-inputs", label: "Formularze dokumentów", icon: "FileInput" },
       { route: "packages", label: "Pakiety RODO", icon: "Package" },
       { route: "products", label: "Produkty / sklep", icon: "Tag" },
       { route: "outsourcing", label: "Outsourcing IOD", icon: "ShieldCheck" },
@@ -217,6 +221,7 @@ export const routeAliases: Partial<Record<CrmRoute, CrmRoute>> = {
   "lead-detail": "leads",
   "client-detail": "clients",
   "doc-review": "documents",
+  "document-input-detail": "document-inputs",
   "breach-detail": "breaches",
   "request-detail": "requests",
   "outsourcing-detail": "outsourcing",

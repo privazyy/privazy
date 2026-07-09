@@ -1,3 +1,14 @@
+# Document Input Flow Update - 2026-07-09
+
+| Finding | Status after PR | Evidence |
+| --- | --- | --- |
+| Document input model missing | ADDED / PARTIAL | `DocumentInput`, `Order`, `OrderItem`, `Product` added as minimal additive schema. |
+| Client document input missing | ADDED / PARTIAL | Protected `/platforma/dokumenty` list and privacy-policy form added. |
+| CRM document input visibility missing | ADDED / PARTIAL | CRM list `Formularze dokumentów` and CRM input API added. |
+| Paid order -> input flow missing | ADDED / PARTIAL | Client creation requires `Order.paymentStatus = PAID` and document `OrderItem`. |
+| Generation after submit | ADDED / CONTROLLED_PENDING | Submit creates `DocumentGenerationJob`, but does not emit a live worker event. |
+| Production readiness | NOT FIXED | No production migration/deploy, no live payment flow, no final DOCX guarantee. |
+
 # Audit Findings
 
 | Finding | Before | After this PR | State |
