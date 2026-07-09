@@ -1,6 +1,19 @@
 import "server-only";
 
-import type { DocumentGenerationStatus, DocumentTemplateStatus, GeneratedDocumentStatus, UserRole } from "@prisma/client";
+import type {
+  DocumentGenerationStatus,
+  DocumentTemplateStatus,
+  FulfillmentStatus,
+  GeneratedDocumentReviewStatus,
+  GeneratedDocumentStatus,
+  InvoiceStatus,
+  OrderStatus,
+  PaymentReviewStatus,
+  PaymentStatus,
+  ProductKind,
+  ProductStatus,
+  UserRole,
+} from "@prisma/client";
 
 import type {
   CrmActivityItem,
@@ -44,6 +57,66 @@ const generatedStatusLabels: Record<GeneratedDocumentStatus, string> = {
   GENERATED: "Wygenerowany",
 };
 
+const orderStatusLabels: Record<OrderStatus, string> = {
+  ARCHIVED: "Archiwum",
+  CANCELLED: "Anulowane",
+  COMPLETED: "Zamkniete",
+  DRAFT: "Szkic",
+  IN_PROGRESS: "W toku",
+  PLACED: "Zlozone",
+};
+
+const fulfillmentStatusLabels: Record<FulfillmentStatus, string> = {
+  CANCELLED: "Anulowane",
+  DELIVERED: "Dostarczone",
+  IN_PROGRESS: "W realizacji",
+  IN_REVIEW: "Review",
+  READY: "Gotowe",
+  WAITING_FOR_INPUT: "Czeka na dane",
+  WAITING_FOR_PAYMENT: "Czeka na platnosc",
+};
+
+const paymentStatusLabels: Record<PaymentStatus, string> = {
+  CANCELLED: "Anulowana",
+  FAILED: "Blad",
+  PAID: "Oplacona",
+  PENDING: "Oczekuje",
+  PROCESSING: "W trakcie",
+  REFUNDED: "Zwrocona",
+};
+
+const paymentReviewLabels: Record<PaymentReviewStatus, string> = {
+  FLAGGED: "Flaga",
+  REVIEWED: "Sprawdzona",
+  UNREVIEWED: "Nie sprawdzono",
+};
+
+const invoiceStatusLabels: Record<InvoiceStatus, string> = {
+  CANCELLED: "Anulowana",
+  FAILED: "Blad",
+  ISSUED: "Wystawiona",
+  NOT_REQUESTED: "Nie zamowiono",
+  REQUESTED: "Zamowiona",
+};
+
+const reviewStatusLabels: Record<GeneratedDocumentReviewStatus, string> = {
+  APPROVED: "Zatwierdzony",
+  NOT_REQUIRED: "Nie wymagany",
+  PENDING: "Do review",
+  REJECTED: "Odrzucony",
+};
+
+const productKindLabels: Record<ProductKind, string> = {
+  DOCUMENT: "Dokument",
+  PACKAGE: "Pakiet",
+  SERVICE: "Usluga",
+};
+
+const productStatusLabels: Record<ProductStatus, string> = {
+  ACTIVE: "Aktywny",
+  ARCHIVED: "Archiwum",
+};
+
 export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const prisma = getPrisma();
 
@@ -51,6 +124,10 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     leads,
     organizations,
     users,
+    products,
+    orders,
+    payments,
+    invoices,
     templates,
     jobs,
     generatedDocuments,
@@ -103,6 +180,34 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       orderBy: { updatedAt: "desc" },
       take: 100,
     }),
+    prisma.product.findMany({
+      orderBy: [{ status: "asc" }, { kind: "asc" }, { name: "asc" }],
+      take: 100,
+    }),
+    prisma.order.findMany({
+      include: {
+        organization: { select: { id: true, name: true, email: true } },
+        owner: { select: { id: true, name: true, email: true } },
+        _count: { select: { items: true, payments: true, invoices: true, generatedDocuments: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.payment.findMany({
+      include: {
+        order: { select: { id: true, orderNumber: true, organization: { select: { id: true, name: true } } } },
+        _count: { select: { events: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.invoice.findMany({
+      include: {
+        order: { select: { id: true, orderNumber: true, organization: { select: { id: true, name: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
     prisma.documentTemplate.findMany({
       include: {
         approvedBy: true,
@@ -115,6 +220,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       include: {
         generatedDocument: true,
         organization: true,
+        order: true,
+        orderItem: true,
         template: true,
       },
       orderBy: { createdAt: "desc" },
@@ -123,7 +230,11 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     prisma.generatedDocument.findMany({
       include: {
         createdBy: true,
+        files: true,
+        downloads: true,
         organization: true,
+        order: true,
+        orderItem: true,
         template: true,
       },
       orderBy: { createdAt: "desc" },
@@ -196,38 +307,122 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
 
   const documentRows: TableRow[] = generatedDocuments.map((document) => {
     const status = generatedStatusLabels[document.status];
+    const review = reviewStatusLabels[document.reviewStatus];
 
     return {
-      actionRoute: "doc-review",
+      actionRoute: "generated-document-detail",
       cells: [
         document.organization.name,
         document.type,
         status,
-        `v${document.templateVersion}`,
-        document.createdBy.name ?? document.createdBy.email,
+        review,
+        document.order?.orderNumber ?? "-",
+        String(document.files.length),
+        String(document.downloads.length),
         formatDate(document.createdAt),
-        document.pdfFileKey ? "PDF" : "DOCX",
         "",
       ],
       primary: document.template.name,
-      secondary: document.id,
+      secondary: document.orderItem?.name ?? document.id,
+      status: { label: status, tone: statusTone(status) },
+      tag: { label: review, tone: document.reviewStatus === "REJECTED" ? "danger" : document.reviewStatus === "APPROVED" ? "success" : "warning" },
+    };
+  });
+
+  const orderRows: TableRow[] = orders.map((order) => {
+    const status = orderStatusLabels[order.status];
+    const fulfillment = fulfillmentStatusLabels[order.fulfillmentStatus];
+
+    return {
+      actionRoute: "order-detail",
+      cells: [
+        order.organization.name,
+        order.customerEmail,
+        status,
+        paymentStatusLabels[order.paymentStatus],
+        invoiceStatusLabels[order.invoiceStatus],
+        fulfillment,
+        formatCents(order.totalGrossCents, order.currency),
+        String(order._count.items),
+        order.owner?.name ?? order.owner?.email ?? "-",
+        formatDate(order.createdAt),
+        "",
+      ],
+      id: order.id,
+      primary: order.orderNumber,
+      secondary: order.buyerName,
+      status: { label: status, tone: statusTone(status) },
+      tag: { label: fulfillment, tone: statusTone(fulfillment) },
+    };
+  });
+
+  const paymentRows: TableRow[] = payments.map((payment) => {
+    const status = paymentStatusLabels[payment.status];
+    const review = paymentReviewLabels[payment.reviewStatus];
+
+    return {
+      actionRoute: "payment-detail",
+      cells: [
+        payment.order.orderNumber,
+        payment.order.organization.name,
+        payment.provider,
+        payment.mode,
+        status,
+        formatCents(payment.amountCents, payment.currency),
+        String(payment._count.events),
+        review,
+        formatDate(payment.createdAt),
+        "",
+      ],
+      id: payment.id,
+      primary: payment.id,
+      secondary: payment.providerPaymentId ?? "mock/sandbox",
+      status: { label: status, tone: statusTone(status) },
+      tag: { label: review, tone: payment.reviewStatus === "FLAGGED" ? "danger" : payment.reviewStatus === "REVIEWED" ? "success" : "neutral" },
+    };
+  });
+
+  const invoiceRows: TableRow[] = invoices.map((invoice) => {
+    const status = invoiceStatusLabels[invoice.status];
+
+    return {
+      actionRoute: "invoice-detail",
+      cells: [
+        invoice.order.orderNumber,
+        invoice.order.organization.name,
+        invoice.buyerName,
+        invoice.mode,
+        status,
+        formatCents(invoice.totalGrossCents, invoice.currency),
+        invoice.issuedAt ? formatDate(invoice.issuedAt) : "-",
+        formatDate(invoice.createdAt),
+        "",
+      ],
+      id: invoice.id,
+      primary: invoice.invoiceNumber ?? invoice.id,
+      secondary: invoice.buyerTaxId ?? invoice.buyerEmail ?? "mock/sandbox",
       status: { label: status, tone: statusTone(status) },
     };
   });
 
-  const orderRows: TableRow[] = jobs.map((job) => {
+  const documentJobRows: TableRow[] = jobs.map((job) => {
     const status = jobStatusLabels[job.status];
 
     return {
+      actionRoute: "document-job-detail",
       cells: [
         job.organization.name,
+        job.order?.orderNumber ?? "-",
+        job.orderItem?.name ?? "-",
         job.template.name,
         status,
+        String(job.retryCount),
         formatDate(job.createdAt),
         job.completedAt ? formatDate(job.completedAt) : "-",
-        job.errorMessage ?? "-",
+        job.errorMessage ? "Safe error" : "-",
         "",
       ],
+      id: job.id,
       primary: job.id,
       secondary: job.template.type,
       status: { label: status, tone: statusTone(status) },
@@ -235,7 +430,26 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     };
   });
 
-  const templateRows: TableRow[] = templates.map((template) => {
+  const templateRows: TableRow[] = (products.length > 0 ? products : templates).map((item) => {
+    if ("sku" in item) {
+      const status = productStatusLabels[item.status];
+      return {
+        actionRoute: "product-editor",
+        cells: [
+          productKindLabels[item.kind],
+          item.documentType ?? "-",
+          formatCents(item.priceCents, item.currency),
+          `${item.vatRateBps / 100}%`,
+          status,
+          formatDate(item.updatedAt),
+          "",
+        ],
+        primary: item.name,
+        secondary: item.sku,
+        status: { label: status, tone: statusTone(status) },
+      };
+    }
+    const template = item;
     const status = templateStatusLabels[template.status];
 
     return {
@@ -250,7 +464,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       primary: template.name,
-      secondary: template.fileKey,
+      secondary: template.id,
       status: { label: status, tone: statusTone(status) },
     };
   });
@@ -326,18 +540,29 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
 
   const activeJobs = jobs.filter((job) => job.status === "PENDING" || job.status === "PROCESSING").length;
   const failedJobs = jobs.filter((job) => job.status === "FAILED").length;
+  const activeOrders = orders.filter((order) => !["COMPLETED", "CANCELLED", "ARCHIVED"].includes(order.status)).length;
+  const failedPayments = payments.filter((payment) => payment.status === "FAILED").length;
+  const issuedInvoices = invoices.filter((invoice) => invoice.status === "ISSUED").length;
   const activeTemplates = templates.filter((template) => template.status === "ACTIVE").length;
   const hotLeads = leads.filter((lead) => ["HIGH", "URGENT"].includes(lead.priority)).length;
   const pipelineValue = leads.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0);
 
   const lists: CrmDatabaseData["lists"] = {
-    accounting: emptyListModule({
-      action: "Wystaw fakturę",
-      columns: ["Nr faktury", "Klient", "Zamówienie", "Netto", "VAT", "Brutto", "Status", "Termin", "Opłacono"],
+    accounting: {
+      action: "Request mock invoice",
+      columns: ["Faktura", "Zamowienie", "Klient", "Nabywca", "Tryb", "Status", "Brutto", "Wystawiono", "Utworzono", ""],
+      emptyMessage: "Brak faktur w bazie danych.",
       icon: "Wallet",
-      title: "Księgowość",
-      subtitle: "Brak tabel faktur i płatności w aktualnym schemacie Prisma.",
-    }),
+      kpis: [
+        { icon: "ReceiptText", label: "Faktury", value: String(counts.invoices), tone: "brand" },
+        { icon: "BadgeCheck", label: "Wystawione", value: String(issuedInvoices), tone: "success" },
+        { icon: "Clock3", label: "Oczekuje", value: String(invoices.filter((invoice) => invoice.status === "REQUESTED").length), tone: "warning" },
+        { icon: "ShieldAlert", label: "Bledy", value: String(invoices.filter((invoice) => invoice.status === "FAILED").length), tone: "danger" },
+      ],
+      rows: invoiceRows,
+      subtitle: "Widok ksiegowy oparty o faktury mock/sandbox powiazane z zamowieniami.",
+      title: "Ksiegowosc",
+    },
     blog: emptyListModule({
       action: "Nowy artykuł",
       columns: ["Artykuł", "Status", "Autor", "Główne słowo kl.", "SEO", "GEO", "Ruch", "Leady", ""],
@@ -369,7 +594,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     },
     documents: {
       action: "Dodaj dokument",
-      columns: ["Dokument", "Klient", "Typ", "Status", "Wersja", "Utworzył", "Utworzono", "Plik", ""],
+      columns: ["Dokument", "Klient", "Typ", "Status", "Review", "Zamowienie", "Pliki", "Pobrania", "Utworzono", ""],
       emptyMessage: "Brak wygenerowanych dokumentów w bazie danych.",
       icon: "FileText",
       kpis: [
@@ -381,6 +606,21 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       rows: documentRows,
       subtitle: "Wygenerowane dokumenty zapisane w tabeli GeneratedDocument.",
       title: "Dokumenty",
+    },
+    invoices: {
+      action: "Request mock invoice",
+      columns: ["Faktura", "Zamowienie", "Klient", "Nabywca", "Tryb", "Status", "Brutto", "Wystawiono", "Utworzono", ""],
+      emptyMessage: "Brak faktur w bazie danych.",
+      icon: "ReceiptText",
+      kpis: [
+        { icon: "ReceiptText", label: "Faktury", value: String(counts.invoices), tone: "brand" },
+        { icon: "BadgeCheck", label: "Wystawione", value: String(issuedInvoices), tone: "success" },
+        { icon: "Clock3", label: "Oczekuje", value: String(invoices.filter((invoice) => invoice.status === "REQUESTED").length), tone: "warning" },
+        { icon: "ShieldAlert", label: "Bledy", value: String(invoices.filter((invoice) => invoice.status === "FAILED").length), tone: "danger" },
+      ],
+      rows: invoiceRows,
+      subtitle: "Faktury mock/sandbox powiazane z zamowieniami. Live issuing pozostaje disabled.",
+      title: "Faktury",
     },
     leads: {
       action: "Dodaj lead",
@@ -445,6 +685,21 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       }),
       subtitle: "Widok platformy klienta oparty o organizacje i powiązane rekordy.",
       title: "Platforma klienta",
+    },
+    payments: {
+      action: "Retry status",
+      columns: ["Platnosc", "Zamowienie", "Klient", "Provider", "Tryb", "Status", "Kwota", "Eventy", "Review", "Utworzono", ""],
+      emptyMessage: "Brak platnosci w bazie danych.",
+      icon: "CreditCard",
+      kpis: [
+        { icon: "CreditCard", label: "Platnosci", value: String(counts.payments), tone: "brand" },
+        { icon: "BadgeCheck", label: "Oplacone", value: String(payments.filter((payment) => payment.status === "PAID").length), tone: "success" },
+        { icon: "ShieldAlert", label: "Bledy", value: String(failedPayments), tone: failedPayments > 0 ? "danger" : "neutral" },
+        { icon: "Activity", label: "Eventy", value: String(payments.reduce((sum, payment) => sum + payment._count.events, 0)), tone: "neutral" },
+      ],
+      rows: paymentRows,
+      subtitle: "Platnosci mock/sandbox i bezpieczne eventy bez raw webhook payload.",
+      title: "Platnosci",
     },
     products: {
       action: "Dodaj produkt",
@@ -547,19 +802,35 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     }),
     orders: makeModule({
       action: "Nowe zamówienie",
-      columns: ["Job", "Klient", "Szablon", "Status", "Utworzono", "Zakończono", "Błąd", ""],
-      emptyMessage: "Brak jobów generowania dokumentów w bazie danych.",
+      columns: ["Zamowienie", "Klient", "Email", "Order", "Payment", "Invoice", "Fulfillment", "Brutto", "Pozycje", "Owner", "Utworzono", ""],
+      emptyMessage: "Brak zamowien w bazie danych.",
       icon: "ShoppingCart",
       kpis: [
-        { icon: "ShoppingCart", label: "Joby generowania", value: String(counts.generationJobs), tone: "brand" },
-        { icon: "Clock3", label: "Aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral" },
-        { icon: "BadgeCheck", label: "Zakończone", value: String(jobs.filter((job) => job.status === "COMPLETED").length), tone: "success" },
-        { icon: "TriangleAlert", label: "Błędy", value: String(failedJobs), tone: failedJobs > 0 ? "danger" : "neutral" },
+        { icon: "ShoppingCart", label: "Zamowienia", value: String(counts.orders), tone: "brand" },
+        { icon: "Clock3", label: "Aktywne", value: String(activeOrders), tone: activeOrders > 0 ? "warning" : "neutral" },
+        { icon: "BadgeCheck", label: "Zamkniete", value: String(orders.filter((order) => order.status === "COMPLETED").length), tone: "success" },
+        { icon: "CreditCard", label: "Platnosci", value: String(counts.payments), tone: "neutral" },
       ],
       route: "orders",
       rows: orderRows,
-      subtitle: "Zamówienia operacyjne odpowiadają jobom generowania dokumentów.",
+      subtitle: "Zamowienia operacyjne CRM z pozycjami, platnosciami, fakturami i dokumentami.",
       title: "Zamówienia",
+    }),
+    "document-jobs": makeModule({
+      action: "Retry job",
+      columns: ["Job", "Klient", "Zamowienie", "Pozycja", "Szablon", "Status", "Retry", "Utworzono", "Zakonczono", "Blad", ""],
+      emptyMessage: "Brak jobow generowania dokumentow w bazie danych.",
+      icon: "FileCog",
+      kpis: [
+        { icon: "FileCog", label: "Joby", value: String(counts.generationJobs), tone: "brand" },
+        { icon: "Clock3", label: "Aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral" },
+        { icon: "BadgeCheck", label: "Zakonczone", value: String(jobs.filter((job) => job.status === "COMPLETED").length), tone: "success" },
+        { icon: "TriangleAlert", label: "Bledy", value: String(failedJobs), tone: failedJobs > 0 ? "danger" : "neutral" },
+      ],
+      route: "document-jobs",
+      rows: documentJobRows,
+      subtitle: "Operacyjne joby generowania dokumentow, retry i safe error summary.",
+      title: "Joby dokumentow",
     }),
     packages: makeModule({
       action: "Nowy pakiet",
@@ -700,6 +971,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       alerts,
       funnel: [
         ["Organizacje", String(counts.organizations), "100%"],
+        ["Zamowienia", String(counts.orders), percentWidth(counts.orders, counts.organizations || counts.orders)],
+        ["Platnosci", String(counts.payments), percentWidth(counts.payments, counts.orders || counts.payments)],
         ["Formularze", String(counts.formSubmissions), percentWidth(counts.formSubmissions, counts.organizations || counts.formSubmissions)],
         ["Leady IOD", String(leads.length), percentWidth(leads.length, counts.formSubmissions || leads.length)],
         ["Joby dokumentów", String(counts.generationJobs), percentWidth(counts.generationJobs, counts.formSubmissions || counts.generationJobs)],
@@ -708,9 +981,12 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       kpis: [
         { icon: "UserPlus", label: "Leady IOD", value: String(leads.length), delta: hotLeads > 0 ? `${hotLeads} gorące` : undefined, tone: hotLeads > 0 ? "danger" : "brand", route: "leads" },
         { icon: "Building2", label: "Organizacje", value: String(counts.organizations), tone: "brand", route: "clients" },
+        { icon: "ShoppingCart", label: "Zamowienia", value: String(counts.orders), tone: "brand", route: "orders" },
+        { icon: "CreditCard", label: "Platnosci", value: String(counts.payments), tone: failedPayments > 0 ? "danger" : "neutral", route: "payments" },
+        { icon: "ReceiptText", label: "Faktury", value: String(counts.invoices), tone: "neutral", route: "invoices" },
         { icon: "FileText", label: "Dokumenty", value: String(counts.generatedDocuments), tone: "success", route: "documents" },
-        { icon: "Clock3", label: "Joby aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral", route: "orders" },
-        { icon: "TriangleAlert", label: "Joby z błędem", value: String(failedJobs), tone: failedJobs > 0 ? "danger" : "neutral", route: "documents" },
+        { icon: "Clock3", label: "Joby aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral", route: "document-jobs" },
+        { icon: "TriangleAlert", label: "Joby z błędem", value: String(failedJobs), tone: failedJobs > 0 ? "danger" : "neutral", route: "document-jobs" },
         { icon: "Tag", label: "Szablony", value: String(counts.templates), tone: "brand", route: "products" },
         { icon: "Users", label: "Użytkownicy", value: String(counts.users), tone: "neutral", route: "employees" },
         { icon: "Activity", label: "Logi audytu", value: String(counts.auditLogs), tone: "neutral", route: "admin" },
@@ -746,18 +1022,32 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       organizationsCount,
       clientProfiles,
       usersCount,
+      productsCount,
+      ordersCount,
+      paymentsCount,
+      invoicesCount,
       templatesCount,
       generationJobs,
       generatedDocumentsCount,
+      documentInputsCount,
+      documentFilesCount,
+      documentDownloadsCount,
       formSubmissionsCount,
       auditLogsCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
       prisma.user.count(),
+      prisma.product.count(),
+      prisma.order.count(),
+      prisma.payment.count(),
+      prisma.invoice.count(),
       prisma.documentTemplate.count(),
       prisma.documentGenerationJob.count(),
       prisma.generatedDocument.count(),
+      prisma.documentInput.count(),
+      prisma.generatedDocumentFile.count(),
+      prisma.documentDownload.count(),
       prisma.formSubmission.count(),
       prisma.auditLog.count(),
     ]);
@@ -765,10 +1055,17 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     return {
       auditLogs: auditLogsCount,
       clientProfiles,
+      documentDownloads: documentDownloadsCount,
+      documentFiles: documentFilesCount,
+      documentInputs: documentInputsCount,
       formSubmissions: formSubmissionsCount,
       generatedDocuments: generatedDocumentsCount,
       generationJobs,
+      invoices: invoicesCount,
       organizations: organizationsCount,
+      orders: ordersCount,
+      payments: paymentsCount,
+      products: productsCount,
       templates: templatesCount,
       users: usersCount,
     };
@@ -834,6 +1131,14 @@ function formatCompactCurrency(value: number) {
   if (value === 0) return "0 zł";
   if (value >= 100_000) return `${Math.round(value / 1000)}k zł`;
   return formatCurrency(value);
+}
+
+function formatCents(value: number, currency = "PLN") {
+  return new Intl.NumberFormat("pl-PL", {
+    currency,
+    maximumFractionDigits: 2,
+    style: "currency",
+  }).format(value / 100);
 }
 
 function formatDate(value: Date) {

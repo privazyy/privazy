@@ -8,3 +8,17 @@
 | Production | NO | No production migration, deployment or production smoke was authorized |
 
 This PR must not be described as full CRM completion or production readiness.
+# CRM commerce/document operations decision update
+
+Decision after this PR: NO-GO for production.
+
+Reason:
+- Commerce/document operational visibility improves, but payments and invoices are mock/sandbox only.
+- Production migration was not executed.
+- Live providers remain disabled.
+- Client document input and portal delivery remain open.
+- Staging requires separate migration, role-matrix smoke, and seeded sandbox data review.
+
+Status:
+- Staging readiness: NO
+- Production readiness: NO
