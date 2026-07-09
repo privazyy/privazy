@@ -10,9 +10,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 type Assignee = { id: string; name: string | null; email: string; role: string };
-type Note = { id: string; body: string; createdAt: string; author: { name: string | null; email: string } };
+type Note = { id: string; body: string; type: string; createdAt: string; author: { name: string | null; email: string } };
 type Contact = { id: string; fullName: string; email: string | null; phone: string | null; role: string | null };
-type Task = { id: string; title: string; status: string; dueAt: string | null };
+type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  dueAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  assignedTo: { id: string; name: string | null; email: string } | null;
+};
+type TimelineItem = {
+  id: string;
+  kind: string;
+  type: string;
+  title: string;
+  description: string | null;
+  actor: { name: string | null; email: string } | null;
+  status: string | null;
+  priority: string | null;
+  createdAt: string;
+};
 
 type LeadDetail = {
   id: string;
@@ -194,27 +215,40 @@ export function CrmRecordDetail({
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [conversionMatches, setConversionMatches] = useState<Array<{ id: string; name: string; nip: string | null }>>([]);
 
   const endpoint = kind === "lead" ? `/api/crm/leads/${id}` : `/api/crm/organizations/${id}`;
+  const timelineEndpoint = kind === "lead" ? `/api/crm/leads/${id}/timeline` : `/api/crm/organizations/${id}/timeline`;
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetch(endpoint), fetch("/api/crm/users")])
-      .then(async ([recordResponse, usersResponse]) => {
+    Promise.all([fetch(endpoint), fetch("/api/crm/users"), fetch(timelineEndpoint)])
+      .then(async ([recordResponse, usersResponse, timelineResponse]) => {
         const payload = await recordResponse.json();
         const usersPayload = await usersResponse.json();
+        const timelinePayload = await timelineResponse.json();
         if (!recordResponse.ok) throw new Error(payload.error ?? "Nie udało się pobrać rekordu.");
         if (active) {
           setRecord(payload);
           setAssignees(usersResponse.ok ? usersPayload.items : []);
+          setTimeline(timelineResponse.ok ? timelinePayload.items : []);
         }
       })
       .catch((cause: Error) => active && setError(cause.message));
     return () => {
       active = false;
     };
-  }, [endpoint]);
+  }, [endpoint, timelineEndpoint]);
+
+  async function refreshRecord() {
+    const [recordResponse, timelineResponse] = await Promise.all([fetch(endpoint), fetch(timelineEndpoint)]);
+    if (recordResponse.ok) setRecord(await recordResponse.json());
+    if (timelineResponse.ok) {
+      const payload = await timelineResponse.json();
+      setTimeline(payload.items ?? []);
+    }
+  }
 
   async function patch(body: Record<string, unknown>) {
     setError(undefined);
@@ -241,7 +275,7 @@ export function CrmRecordDetail({
       {
       method: "POST",
       headers: { "content-type": "application/json" },
-        body: JSON.stringify({ body: form.get("body") }),
+        body: JSON.stringify({ body: form.get("body"), type: form.get("type") }),
       },
     );
     const payload = await response.json();
@@ -250,9 +284,49 @@ export function CrmRecordDetail({
       return;
     }
     event.currentTarget.reset();
-    const refreshed = await fetch(endpoint);
-    setRecord(await refreshed.json());
+    await refreshRecord();
     setNotice("Notatka dodana.");
+  }
+
+  async function addTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const body = {
+      [kind === "lead" ? "leadId" : "organizationId"]: id,
+      title: form.get("title"),
+      description: form.get("description") || undefined,
+      assignedToId: form.get("assignedToId") || undefined,
+      priority: form.get("priority") || "NORMAL",
+      dueAt: form.get("dueAt") ? new Date(String(form.get("dueAt"))).toISOString() : undefined,
+    };
+    const response = await fetch("/api/crm/tasks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udało się utworzyć zadania.");
+      return;
+    }
+    event.currentTarget.reset();
+    await refreshRecord();
+    setNotice("Zadanie utworzone.");
+  }
+
+  async function changeTaskStatus(taskId: string, status: "DONE" | "CANCELLED" | "IN_PROGRESS") {
+    const response = await fetch(`/api/crm/tasks/${taskId}/status`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udało się zmienić statusu zadania.");
+      return;
+    }
+    await refreshRecord();
+    setNotice("Status zadania zmieniony.");
   }
 
   async function convertLead(organizationId?: string) {
@@ -361,6 +435,14 @@ export function CrmRecordDetail({
           <h2 className="text-lg font-bold text-[var(--text-strong)]">Notatki wewnętrzne</h2>
           {canMutate && (
             <form className="mt-4 space-y-3" onSubmit={addNote}>
+              <select className={selectClass} defaultValue="GENERAL" name="type">
+                <option value="GENERAL">Ogólna</option>
+                <option value="CALL">Telefon</option>
+                <option value="EMAIL">E-mail</option>
+                <option value="MEETING">Spotkanie</option>
+                <option value="LEGAL">Prawna</option>
+                <option value="INTERNAL">Wewnętrzna</option>
+              </select>
               <Textarea name="body" placeholder="Dodaj kontekst dla zespołu…" required />
               <Button type="submit">Dodaj notatkę</Button>
             </form>
@@ -368,8 +450,12 @@ export function CrmRecordDetail({
           <div className="mt-4 space-y-3">
             {notes.map((note) => (
               <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3" key={note.id}>
-                <p className="whitespace-pre-wrap text-sm text-[var(--text-body)]">{note.body}</p>
-                <p className="mt-2 text-xs text-[var(--text-muted)]">{note.author.name ?? note.author.email} · {new Date(note.createdAt).toLocaleString("pl-PL")}</p>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge tone="neutral">{noteTypeLabel(note.type)}</Badge>
+                  <span className="text-xs text-[var(--text-muted)]">{new Date(note.createdAt).toLocaleString("pl-PL")}</span>
+                </div>
+                <p className="whitespace-pre-wrap break-words text-sm text-[var(--text-body)]">{note.body}</p>
+                <p className="mt-2 text-xs text-[var(--text-muted)]">{note.author.name ?? note.author.email}</p>
               </div>
             ))}
             {notes.length === 0 && <p className="text-sm text-[var(--text-muted)]">Brak notatek.</p>}
@@ -377,12 +463,93 @@ export function CrmRecordDetail({
         </Card>
       </div>
 
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+        <Card padding="md" variant="flat">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-[var(--text-strong)]">Zadania operacyjne</h2>
+            <Badge tone={tasks.some((task) => task.status !== "DONE" && task.status !== "CANCELLED") ? "warning" : "neutral"}>
+              {tasks.length}
+            </Badge>
+          </div>
+          {canMutate && (
+            <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={addTask}>
+              <Field label="Tytuł" name="title" required />
+              <label className="space-y-2">
+                <Label htmlFor="task-assignee">Przypisany</Label>
+                <select className={selectClass} id="task-assignee" name="assignedToId">
+                  <option value="">Nieprzypisane</option>
+                  {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.name ?? assignee.email}</option>)}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <Label htmlFor="task-priority">Priorytet</Label>
+                <select className={selectClass} defaultValue="NORMAL" id="task-priority" name="priority">
+                  <option value="LOW">Niski</option>
+                  <option value="NORMAL">Standard</option>
+                  <option value="HIGH">Wysoki</option>
+                  <option value="URGENT">Pilny</option>
+                </select>
+              </label>
+              <Field label="Termin" name="dueAt" type="datetime-local" />
+              <label className="space-y-2 sm:col-span-2">
+                <Label htmlFor="task-description">Opis</Label>
+                <Textarea id="task-description" name="description" placeholder="Krótki kontekst zadania…" />
+              </label>
+              <div className="sm:col-span-2">
+                <Button type="submit">Utwórz zadanie</Button>
+              </div>
+            </form>
+          )}
+          <div className="mt-5 space-y-3">
+            {tasks.map((task) => (
+              <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3" key={task.id}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-[var(--text-strong)]">{task.title}</p>
+                    {task.description && <p className="mt-1 break-words text-sm text-[var(--text-muted)]">{task.description}</p>}
+                  </div>
+                  <Badge tone={task.status === "DONE" ? "success" : task.status === "CANCELLED" ? "neutral" : "warning"}>{taskStatusLabel(task.status)}</Badge>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                  <Badge tone={["HIGH", "URGENT"].includes(task.priority) ? "danger" : "neutral"}>{priorityLabel(task.priority)}</Badge>
+                  <span>{task.assignedTo?.name ?? task.assignedTo?.email ?? "Nieprzypisane"}</span>
+                  {task.dueAt && <span>Termin: {new Date(task.dueAt).toLocaleString("pl-PL")}</span>}
+                </div>
+                {canMutate && task.status !== "DONE" && task.status !== "CANCELLED" && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" type="button" variant="outline" onClick={() => void changeTaskStatus(task.id, "IN_PROGRESS")}>W toku</Button>
+                    <Button size="sm" type="button" onClick={() => void changeTaskStatus(task.id, "DONE")}>Done</Button>
+                    <Button size="sm" type="button" variant="ghost" onClick={() => void changeTaskStatus(task.id, "CANCELLED")}>Anuluj</Button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {tasks.length === 0 && <p className="text-sm text-[var(--text-muted)]">Brak zadań.</p>}
+          </div>
+        </Card>
+
+        <Card padding="md" variant="flat">
+          <h2 className="text-lg font-bold text-[var(--text-strong)]">Timeline</h2>
+          <div className="mt-4 space-y-3">
+            {timeline.map((item) => (
+              <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3" key={`${item.kind}-${item.id}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={item.kind === "task" ? "warning" : item.kind === "note" ? "brand" : "neutral"}>{timelineKindLabel(item.kind)}</Badge>
+                  <span className="text-xs text-[var(--text-muted)]">{new Date(item.createdAt).toLocaleString("pl-PL")}</span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{item.title}</p>
+                {item.description && <p className="mt-1 line-clamp-4 break-words text-sm text-[var(--text-muted)]">{item.description}</p>}
+                <p className="mt-2 text-xs text-[var(--text-muted)]">{item.actor?.name ?? item.actor?.email ?? "System"}</p>
+              </div>
+            ))}
+            {timeline.length === 0 && <p className="text-sm text-[var(--text-muted)]">Brak aktywności.</p>}
+          </div>
+        </Card>
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-3">
         <RelationCard title="Kontakty" empty="Brak osób kontaktowych.">
           {contacts.map((contact) => <p className="text-sm" key={contact.id}><strong>{contact.fullName}</strong><br />{contact.role ?? contact.email ?? contact.phone ?? "—"}</p>)}
-        </RelationCard>
-        <RelationCard title="Zadania" empty="Brak zadań.">
-          {tasks.map((task) => <p className="text-sm" key={task.id}><strong>{task.title}</strong><br />{task.status}{task.dueAt ? ` · ${new Date(task.dueAt).toLocaleDateString("pl-PL")}` : ""}</p>)}
         </RelationCard>
         <RelationCard title={lead ? "Źródło" : "Powiązane leady"} empty={lead ? "Lead ręczny bez formularza." : "Brak powiązanych leadów."}>
           {lead?.formSubmission && <p className="text-sm"><strong>{lead.formSubmission.formType}</strong><br />{lead.formSubmission.status} · {new Date(lead.formSubmission.createdAt).toLocaleString("pl-PL")}</p>}
@@ -409,4 +576,42 @@ function RelationCard({ children, empty, title }: { children: ReactNode; empty: 
 
 function DetailState({ message, onBack }: { message: string; onBack: () => void }) {
   return <Card padding="md" variant="flat"><Button type="button" variant="ghost" onClick={onBack}>← Wróć</Button><p className="mt-5 text-sm text-[var(--text-muted)]">{message}</p></Card>;
+}
+
+function noteTypeLabel(type: string) {
+  return {
+    CALL: "Telefon",
+    EMAIL: "E-mail",
+    GENERAL: "Ogólna",
+    INTERNAL: "Wewnętrzna",
+    LEGAL: "Prawna",
+    MEETING: "Spotkanie",
+  }[type] ?? type;
+}
+
+function taskStatusLabel(status: string) {
+  return {
+    CANCELLED: "Anulowane",
+    DONE: "Zakończone",
+    IN_PROGRESS: "W toku",
+    OPEN: "Otwarte",
+  }[status] ?? status;
+}
+
+function priorityLabel(priority: string) {
+  return {
+    HIGH: "Wysoki",
+    LOW: "Niski",
+    NORMAL: "Standard",
+    URGENT: "Pilny",
+  }[priority] ?? priority;
+}
+
+function timelineKindLabel(kind: string) {
+  return {
+    activity: "Aktywność",
+    audit: "Audyt",
+    note: "Notatka",
+    task: "Zadanie",
+  }[kind] ?? kind;
 }

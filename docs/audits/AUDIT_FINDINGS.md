@@ -11,3 +11,19 @@
 | Remaining CRM modules | Mostly scaffold | Unchanged | Open |
 
 The CRM audit moves from `PARTIAL` to `IMPROVED`, not complete. Documents/generators, portal, breach/DSR, CMS, automation and production operations remain open.
+## CRM tasks, notes and timeline update
+
+Improved in this PR:
+
+- CRM notes: ADDED for typed internal notes and update flow.
+- CRM tasks: ADDED for create/list/detail/update/status/assign foundation.
+- CRM activity timeline: ADDED as an internal operational timeline.
+- CRM mutations: IMPROVED for note/task modules with Zod validation and role checks.
+
+Still not fixed:
+
+- Full CRM automation.
+- Client portal messaging.
+- Breach/DSR modules.
+- Commerce, payments and invoices.
+- Production readiness.

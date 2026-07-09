@@ -12,3 +12,12 @@
 Every Route Handler calls the server-side read or write guard. UI hiding/disabling is only an ergonomic layer. Mutation services also validate assignee roles and referenced organization IDs.
 
 The new CRM tables, `Organization` and `FormSubmission` have RLS enabled and privileges revoked from Supabase `anon` and `authenticated`. Runtime access uses the server database connection; no service-role credential is sent to the browser.
+## Tasks, notes and timeline
+
+- `ADMIN`: can read and mutate CRM notes/tasks/timeline-backed resources.
+- `LAWYER`: can read and mutate operational/legal notes and tasks.
+- `OPERATOR`: can read and mutate operational notes and tasks.
+- `READ_ONLY`: can read notes, tasks and timeline, but cannot mutate.
+- `CLIENT`: cannot access CRM notes, tasks or internal timeline.
+
+Server-side route and service checks are required. UI hiding is not a security boundary.

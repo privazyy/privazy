@@ -8,3 +8,13 @@
 | Production | NO | No production migration, deployment or production smoke was authorized |
 
 This PR must not be described as full CRM completion or production readiness.
+## Decision after CRM tasks/notes/timeline PR
+
+- CRM operational workflow: IMPROVED
+- CRM notes: ADDED
+- CRM tasks: ADDED
+- CRM activity timeline: ADDED/PARTIAL
+- Staging readiness: NO
+- Production readiness: NO
+
+Reason: this PR improves staff workflow, but does not complete broader CRM, commerce, document operations, breach/DSR, automation, staging rehearsal or production release gates.
