@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getRequestIp, safeLogAuditEvent } from "@/server/audit/log";
-import { createIodLead, iodLeadPayloadSchema } from "@/server/leads/iod";
+import { createPublicLead, publicLeadPayloadSchema } from "@/server/leads/public";
 import { checkRateLimit, cleanupRateLimitBuckets } from "@/server/security/rate-limit";
 import { verifyTurnstileToken } from "@/server/security/turnstile";
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nieprawidłowy format danych." }, { status: 400 });
   }
 
-  const parsed = iodLeadPayloadSchema.safeParse(json);
+  const parsed = publicLeadPayloadSchema.safeParse(json);
 
   if (!parsed.success) {
     return NextResponse.json({ error: "Uzupełnij wymagane dane formularza." }, { status: 400 });
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       action: "lead.honeypot_blocked",
       entityId: email,
       entityType: "LeadForm",
-      metadata: { formType: "iod_checker_lead" },
+      metadata: { formType: "public_site_lead" },
       request,
     });
 
@@ -43,8 +43,8 @@ export async function POST(request: Request) {
 
   cleanupRateLimitBuckets();
 
-  const ipLimit = checkRateLimit(`lead:iod:ip:${clientIp ?? "unknown"}`, IP_RATE_LIMIT);
-  const emailLimit = checkRateLimit(`lead:iod:email:${email}`, EMAIL_RATE_LIMIT);
+  const ipLimit = checkRateLimit(`lead:public:ip:${clientIp ?? "unknown"}`, IP_RATE_LIMIT);
+  const emailLimit = checkRateLimit(`lead:public:email:${email}`, EMAIL_RATE_LIMIT);
 
   if (!ipLimit.allowed || !emailLimit.allowed) {
     await safeLogAuditEvent({
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       entityType: "LeadForm",
       metadata: {
         emailResetAt: emailLimit.resetAt,
-        formType: "iod_checker_lead",
+        formType: "public_site_lead",
         ipResetAt: ipLimit.resetAt,
       },
       request,
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       entityType: "LeadForm",
       metadata: {
         errorCodes: turnstile.errorCodes,
-        formType: "iod_checker_lead",
+        formType: "public_site_lead",
       },
       request,
     });
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const lead = await createIodLead(parsed.data, {
+    const lead = await createPublicLead(parsed.data, {
       ipAddress: clientIp,
       referrer: request.headers.get("referer") ?? undefined,
       userAgent: request.headers.get("user-agent") ?? undefined,
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(lead, { status: 201 });
   } catch (error) {
-    console.error("IOD lead create failed", error);
+    console.error("Public lead create failed", error);
     return NextResponse.json(
       { error: "Nie udało się zapisać zgłoszenia. Spróbuj ponownie za chwilę." },
       { status: 500 },

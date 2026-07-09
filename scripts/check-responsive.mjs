@@ -3,14 +3,23 @@ import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const baseUrl = (process.env.RESPONSIVE_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-const routes = [
+const baseUrl = (process.env.RESPONSIVE_BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
+const defaultRoutes = [
   "/",
-  "/admin",
   "/blog",
   "/blog/czy-musisz-powolac-inspektora-ochrony-danych",
+  "/uslugi/outsourcing-iod",
+  "/uslugi/dokumentacja-rodo",
+  "/branze/ecommerce",
+  "/branze/placowki-medyczne",
   "/sklep/polityka-prywatnosci",
 ];
+const routes = process.env.RESPONSIVE_ROUTES
+  ? process.env.RESPONSIVE_ROUTES.split(",").map((route) => route.trim()).filter(Boolean)
+  : defaultRoutes;
+if (process.env.RESPONSIVE_INCLUDE_PRIVATE === "true" && !routes.includes("/admin")) {
+  routes.push("/admin");
+}
 const viewports = [
   { name: "mobile-360", width: 360, height: 780 },
   { name: "mobile-390", width: 390, height: 900 },
@@ -167,15 +176,18 @@ async function evaluate(cdp, expression) {
 
 async function waitForPage(cdp) {
   const deadline = Date.now() + 20_000;
+  let lastState;
   while (Date.now() < deadline) {
     const state = await evaluate(cdp, `({
       ready: document.readyState,
-      textLength: document.body?.innerText?.trim().length ?? 0
+      textLength: document.body?.innerText?.trim().length ?? 0,
+      url: location.href
     })`);
-    if (state.ready === "complete" && state.textLength > 80) return;
+    lastState = state;
+    if ((state.ready === "interactive" || state.ready === "complete") && state.textLength > 80) return;
     await sleep(250);
   }
-  throw new Error("Page did not finish rendering useful content in time.");
+  throw new Error(`Page did not finish rendering useful content in time. Last state: ${JSON.stringify(lastState)}`);
 }
 
 async function checkViewport(cdp, route, viewport) {
@@ -188,7 +200,11 @@ async function checkViewport(cdp, route, viewport) {
     mobile: viewport.width < 768,
   });
   await cdp.send("Page.navigate", { url });
-  await waitForPage(cdp);
+  try {
+    await waitForPage(cdp);
+  } catch (error) {
+    throw new Error(`${route} ${viewport.name} ${viewport.width}x${viewport.height}: ${error.message}`);
+  }
   await sleep(400);
 
   const result = await evaluate(cdp, `(() => {
