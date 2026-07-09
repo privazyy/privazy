@@ -11,41 +11,41 @@ export function BlogHeader() {
       className="sticky top-0 z-50 border-b border-slate-200 backdrop-blur-md"
       style={{ background: "var(--glass-bg)" }}
     >
-      <div className="flex items-center gap-6 pvz-container" style={{ height: 72 }}>
-        <Link href={"/" as Route} aria-label="PRIVAZY strona główna">
+      <div className="flex min-h-[72px] items-center gap-6 py-3 pvz-container">
+        <Link href="/" aria-label="PRIVAZY strona główna">
           <Logo />
         </Link>
         <nav className="ml-3 hidden flex-1 items-center gap-6 text-sm font-medium text-slate-700 lg:flex">
-          <Link href={"/#jak-dziala" as Route} className="transition-colors hover:text-blue-700">
-            Jak to działa
-          </Link>
-          <Link href={"/#dokumenty" as Route} className="transition-colors hover:text-blue-700">
-            Dokumenty
-          </Link>
-          <Link href={"/#checker" as Route} className="transition-colors hover:text-blue-700">
+          <Link href="/#checker" className="transition-colors hover:text-blue-700">
             Checker IOD
           </Link>
-          <Link href={"/#cennik" as Route} className="transition-colors hover:text-blue-700">
-            Cennik
+          <Link href="/uslugi/wdrozenie-rodo" className="transition-colors hover:text-blue-700">
+            Usługi
           </Link>
-          <Link href={"/blog" as Route} className="font-semibold text-blue-700">
+          <Link href="/branze/ecommerce" className="transition-colors hover:text-blue-700">
+            Branże
+          </Link>
+          <Link href="/sklep/polityka-prywatnosci" className="transition-colors hover:text-blue-700">
+            Dokumenty
+          </Link>
+          <Link href="/blog" className="font-semibold text-blue-700">
             Blog
           </Link>
         </nav>
         <div className="ml-auto hidden items-center gap-3 sm:flex">
           <Link
-            href={"/admin" as Route}
+            href="/admin"
             className="text-sm font-semibold text-slate-950 transition-colors hover:text-blue-700"
           >
             Zaloguj
           </Link>
           <Button asChild className="hidden lg:inline-flex">
-            <Link href={"/#checker" as Route}>
+            <Link href="/#checker">
               Sprawdź obowiązek IOD <ArrowRight className="size-4" />
             </Link>
           </Button>
           <Button asChild size="sm" className="lg:hidden">
-            <Link href={"/#checker" as Route}>Checker</Link>
+            <Link href="/#checker">Checker</Link>
           </Button>
         </div>
       </div>
@@ -56,12 +56,21 @@ export function BlogHeader() {
 export function BlogFooter() {
   const columns = [
     {
-      title: "Produkt",
+      title: "Usługi",
       links: [
-        { label: "Checker IOD", href: "/#checker" },
-        { label: "Generator dokumentów", href: "/documents" },
-        { label: "Outsourcing IOD", href: "/#cennik" },
-        { label: "Cennik", href: "/#cennik" },
+        { label: "Wdrożenie RODO", href: "/uslugi/wdrozenie-rodo" },
+        { label: "Outsourcing IOD", href: "/uslugi/outsourcing-iod" },
+        { label: "Audyt RODO", href: "/uslugi/audyt-rodo" },
+        { label: "Naruszenia danych", href: "/uslugi/naruszenia-ochrony-danych" },
+      ],
+    },
+    {
+      title: "Branże",
+      links: [
+        { label: "E-commerce", href: "/branze/ecommerce" },
+        { label: "Placówki medyczne", href: "/branze/placowki-medyczne" },
+        { label: "HR i rekrutacja", href: "/branze/hr-i-rekrutacja" },
+        { label: "SaaS i IT", href: "/branze/saas-i-it" },
       ],
     },
     {
@@ -69,17 +78,8 @@ export function BlogFooter() {
       links: [
         { label: "RODO i ochrona danych", href: "/blog" },
         { label: "Obowiązek IOD", href: "/blog?category=iod" },
-        { label: "Poradniki dla firm", href: "/blog?category=poradniki" },
-        { label: "Zmiany w prawie", href: "/blog?category=prawo" },
-      ],
-    },
-    {
-      title: "Firma",
-      links: [
-        { label: "O nas", href: "/" },
-        { label: "Blog", href: "/blog" },
+        { label: "Dokumenty RODO", href: "/sklep/polityka-prywatnosci" },
         { label: "Kontakt", href: "mailto:kontakt@privazy.pl" },
-        { label: "Regulamin", href: "/" },
       ],
     },
   ];
@@ -90,7 +90,7 @@ export function BlogFooter() {
         <div>
           <Logo tone="inverse" />
           <p className="mt-4 max-w-xs text-sm leading-6">
-            Dokumenty i wdrożenia RODO uszyte na miarę Twojej firmy. Polski legaltech dla ochrony danych osobowych.
+            RODO dla firm bez chaosu: checker IOD, dokumenty, audyty, outsourcing i obsługa incydentów.
           </p>
           <a
             href="mailto:kontakt@privazy.pl"

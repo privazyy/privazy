@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -59,6 +60,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { LeadCaptureForm } from "@/components/public/lead-capture-form";
 import { mapIodObligationToOutcomeKey, mapLandingAnswersToObligationInput } from "@/lib/iod-checker";
 import { evaluateIodObligation, type IodObligationOutput } from "@/lib/iod-obligation-checker";
 import { cn } from "@/lib/utils";
@@ -152,8 +154,8 @@ type Outcome = {
 
 const offerItems = [
   { icon: "badge-check", title: "Sprawdź obowiązek IOD", desc: "Checker w 7 krokach", kind: "checker" },
-  { icon: "package", title: "Pakiety RODO", desc: "Mikro · Standard · Pro", href: "#pakiety" },
-  { icon: "shield-check", title: "Outsourcing IOD", desc: "Stały nadzór i platforma", href: "#outsourcing" },
+  { icon: "package", title: "Pakiety RODO", desc: "Mikro · Standard · Pro", href: "/uslugi/dokumentacja-rodo" },
+  { icon: "shield-check", title: "Outsourcing IOD", desc: "Stały nadzór i platforma", href: "/uslugi/outsourcing-iod" },
 ];
 
 const questions = [
@@ -319,36 +321,42 @@ const industries = [
   {
     icon: "heart-pulse",
     value: "Medyczna",
+    href: "/branze/placowki-medyczne",
     title: "Placówki medyczne",
     desc: "Dane o zdrowiu to dane szczególnych kategorii. Przy większej skali realny jest obowiązek IOD i ocena skutków (DPIA).",
   },
   {
     icon: "graduation-cap",
     value: "Edukacja",
+    href: "/branze/szkoly-i-przedszkola",
     title: "Szkoły, przedszkola i żłobki niepubliczne",
     desc: "Przetwarzasz dane dzieci i rodziców. Potrzebne są polityki, upoważnienia i procedury naruszeń.",
   },
   {
     icon: "users",
     value: "HR / rekrutacja",
+    href: "/branze/hr-i-rekrutacja",
     title: "HR i rekrutacja",
     desc: "Rekrutacja i kadry to ciągłe przetwarzanie danych kandydatów i pracowników, w tym danych wrażliwych.",
   },
   {
     icon: "scale",
     value: "Kancelaria / odszkodowania",
+    href: "/branze/kancelarie",
     title: "Kancelarie i firmy odszkodowawcze",
     desc: "Duże zbiory danych klientów oraz dane o zdrowiu i sprawach, a więc wysokie wymagania wobec dokumentacji RODO.",
   },
   {
     icon: "shopping-cart",
     value: "E-commerce",
+    href: "/branze/ecommerce",
     title: "E-commerce i usługi online",
     desc: "Profilowanie, marketing i obsługa zamówień oznaczają stałe przetwarzanie danych klientów.",
   },
   {
     icon: "database",
     value: "Inna",
+    href: "/branze/saas-i-it",
     title: "Firmy przetwarzające dane na większą skalę",
     desc: "Monitoring lub przetwarzanie na dużą skalę często wiąże się z obowiązkiem IOD i DPIA.",
   },
@@ -369,7 +377,7 @@ const paths = [
     desc: "Wybierz pakiet Mikro, Standard albo Pro. Dokumenty są personalizowane na podstawie wzorów przygotowanych przez prawników i sprawdzane przez specjalistę.",
     cta: "Zobacz pakiety",
     kind: "link",
-    href: "#pakiety",
+    href: "/uslugi/dokumentacja-rodo",
     tone: "plain",
   },
   {
@@ -378,7 +386,7 @@ const paths = [
     desc: "Przekaż funkcję IOD zewnętrznemu specjaliście. Otrzymujesz stały nadzór, konsultacje, obsługę incydentów, aktualizację dokumentacji i wsparcie przed UODO.",
     cta: "Umów rozmowę",
     kind: "link",
-    href: "#kontakt",
+    href: "/uslugi/outsourcing-iod",
     tone: "plain",
   },
 ];
@@ -544,13 +552,13 @@ function outcomeFor(key: "required" | "highrisk" | "maybe" | "docs"): Omit<Outco
     title: `Dobierz pakiet ${pkg}`,
     desc: label,
     icon: "package",
-    href: "#pakiety",
+    href: "/uslugi/dokumentacja-rodo",
   });
   const recOut = {
     title: "Outsourcing IOD",
     desc: "Przekaż funkcję IOD specjaliście i obsługuj incydenty w platformie.",
     icon: "shield-check",
-    href: "#outsourcing",
+    href: "/uslugi/outsourcing-iod",
   };
   const recConsult = {
     title: "Skonsultuj wynik ze specjalistą",
@@ -725,7 +733,6 @@ export function PrivazyLanding() {
   const [showFloat, setShowFloat] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
-  const [email, setEmail] = useState("");
   const offerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -934,14 +941,20 @@ export function PrivazyLanding() {
                   <div className="mb-2.5 text-[length:var(--fs-sm)] font-semibold text-[var(--text-strong)]">
                     Chcesz dostać wynik i rekomendację na e-mail?
                   </div>
-                  <div className="flex flex-wrap gap-2.5">
-                    <input
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="twoj@email.pl"
-                      className="h-11 min-w-[200px] flex-1 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3.5 text-[length:var(--fs-body)] text-[var(--text-strong)] outline-none focus-visible:border-[var(--brand)] focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+                  <div className="min-w-0">
+                    <LeadCaptureForm
+                      checker={{
+                        answers,
+                        complianceResult: result.assessment,
+                        resultStatus: result.assessment.obligation_status,
+                        resultTitle: result.title,
+                        resultTrigger: result.assessment.primary_trigger,
+                        scale: result.assessment.scale_result.classification,
+                      }}
+                      compact
+                      placement="checker-result"
+                      subject="Wyślij wynik i porozmawiaj o rekomendacji"
                     />
-                    <PrimaryButton className="min-h-11 px-5 text-[length:var(--fs-body)] shadow-none">Wyślij wynik</PrimaryButton>
                   </div>
                   <p className="mt-2.5 text-[length:var(--fs-xs)] text-[var(--text-faint)]">
                     Wynik checkera ma charakter informacyjny i pomaga dobrać dalszą ścieżkę. W przypadkach granicznych rekomendujemy konsultację ze specjalistą.
@@ -1053,8 +1066,8 @@ export function PrivazyLanding() {
             <div className="px-2 pb-1 pt-3 text-[length:var(--fs-xs)] font-bold uppercase text-[var(--text-faint)]">Oferta</div>
             {[
               ["Sprawdź obowiązek IOD", "#checker"],
-              ["Pakiety RODO", "#pakiety"],
-              ["Outsourcing IOD", "#outsourcing"],
+              ["Pakiety RODO", "/uslugi/dokumentacja-rodo"],
+              ["Outsourcing IOD", "/uslugi/outsourcing-iod"],
               ["Dokumenty", "#dokumenty"],
               ["Platforma", "#platforma"],
               ["Blog", "#blog"],
@@ -1114,7 +1127,7 @@ export function PrivazyLanding() {
                 Sprawdź, czy musisz mieć IOD
                 <Icon name="arrow-right" className="size-5" />
               </PrimaryButton>
-              <SecondaryLink href="#pakiety" className="min-h-[54px] rounded-[var(--radius-lg)] px-6 text-[length:var(--fs-lead)]">
+              <SecondaryLink href="/uslugi/dokumentacja-rodo" className="min-h-[54px] rounded-[var(--radius-lg)] px-6 text-[length:var(--fs-lead)]">
                 Zobacz pakiety dokumentów
               </SecondaryLink>
             </div>
@@ -1176,6 +1189,13 @@ export function PrivazyLanding() {
                   Sprawdź wymagania dla tej branży
                   <Icon name="arrow-right" className="size-4" />
                 </button>
+                <a
+                  href={industry.href}
+                  className="lp-link mt-3 inline-flex items-center gap-2 self-start text-[length:var(--fs-sm)] font-semibold text-[var(--text-muted)]"
+                >
+                  Zobacz stronę branży
+                  <Icon name="arrow-right" className="size-4" />
+                </a>
               </article>
             ))}
           </div>
@@ -1535,7 +1555,7 @@ export function PrivazyLanding() {
             ))}
           </div>
           <div className="mt-[30px] flex justify-center">
-            <SecondaryLink href="#" className="min-h-12 text-[length:var(--fs-body)] shadow-none">
+            <SecondaryLink href="/sklep/polityka-prywatnosci" className="min-h-12 text-[length:var(--fs-body)] shadow-none">
               Zobacz pełny katalog dokumentów
               <Icon name="arrow-right" className="size-[18px]" />
             </SecondaryLink>
@@ -1645,14 +1665,14 @@ export function PrivazyLanding() {
               <Eyebrow>Blog</Eyebrow>
               <h2 className="mt-3 text-[length:var(--fs-h2)]">Praktyczne poradniki RODO dla firm</h2>
             </div>
-            <SecondaryLink href="#" className="min-h-[46px] px-5 text-[length:var(--fs-sm)] shadow-none">
+            <SecondaryLink href="/blog" className="min-h-[46px] px-5 text-[length:var(--fs-sm)] shadow-none">
               Zobacz poradniki
               <Icon name="arrow-right" className="size-4" />
             </SecondaryLink>
           </div>
           <div className="mt-9 grid gap-[18px] sm:grid-cols-2 lg:grid-cols-4">
             {blogPosts.map((post) => (
-              <a key={post.title} href="#" className="flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-sm)]">
+              <Link key={post.title} href="/blog" className="flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-sm)]">
                 <div className="grid h-[110px] place-items-center bg-[linear-gradient(135deg,var(--blue-50),var(--blue-100))] text-[var(--brand)]">
                   <Icon name={post.icon} className="size-[34px]" />
                 </div>
@@ -1661,7 +1681,7 @@ export function PrivazyLanding() {
                   <div className="mt-3 flex-1 font-display text-base font-bold leading-[1.3] text-[var(--text-strong)]">{post.title}</div>
                   <span className="mt-3 text-[length:var(--fs-xs)] text-[var(--text-faint)]">Czas czytania: {post.read}</span>
                 </div>
-              </a>
+              </Link>
             ))}
           </div>
           <div className="mt-[30px] flex justify-center">
@@ -1753,9 +1773,9 @@ export function PrivazyLanding() {
             title="Produkt"
             links={[
               ["Checker IOD", "#checker"],
-              ["Pakiety RODO", "#pakiety"],
+              ["Pakiety RODO", "/uslugi/dokumentacja-rodo"],
               ["Dokumenty", "#dokumenty"],
-              ["Outsourcing IOD", "#outsourcing"],
+              ["Outsourcing IOD", "/uslugi/outsourcing-iod"],
               ["Platforma", "#platforma"],
             ]}
           />

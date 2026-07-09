@@ -19,10 +19,19 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "PRIVAZY",
-  description: "Legaltech workspace for privacy and RODO document workflows.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://privazy.pl"),
+  title: {
+    default: "privazy. - RODO dla firm bez chaosu",
+    template: "%s | privazy.",
+  },
+  description: "Checker IOD, dokumentacja RODO, audyty, outsourcing IOD i obsługa incydentów dla firm w Polsce.",
   icons: {
     icon: "/favicon.svg",
+  },
+  openGraph: {
+    locale: "pl_PL",
+    siteName: "privazy.",
+    type: "website",
   },
 };
 
