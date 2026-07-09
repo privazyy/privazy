@@ -214,6 +214,32 @@ enum DataBreachIncidentStatus {
   CANCELLED
 }
 
+enum DataSubjectRequestType {
+  ACCESS
+  COPY
+  RECTIFICATION
+  ERASURE
+  RESTRICTION
+  PORTABILITY
+  OBJECTION
+  WITHDRAW_CONSENT
+  AUTOMATED_DECISION
+  OTHER
+}
+
+enum DataSubjectRequestStatus {
+  DRAFT
+  RECEIVED
+  IDENTITY_VERIFICATION
+  IN_PROGRESS
+  WAITING_FOR_INFORMATION
+  RESPONSE_PREPARED
+  RESPONDED
+  REJECTED
+  CLOSED
+  CANCELLED
+}
+
 enum DataBreachSeverity {
   LOW
   MEDIUM
@@ -245,6 +271,39 @@ enum DataBreachActivityVisibility {
   PUBLIC
 }
 
+enum DataSubjectRequestPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum DataSubjectRequestVerificationStatus {
+  NOT_STARTED
+  PENDING
+  VERIFIED
+  FAILED
+  NOT_REQUIRED
+}
+
+enum DataSubjectRequestActivityType {
+  CREATED
+  SUBMITTED
+  UPDATED
+  STATUS_CHANGED
+  IDENTITY_VERIFICATION_UPDATED
+  RESPONSE_PREPARED
+  RESPONSE_MARKED_SENT
+  NOTE_ADDED
+  TASK_CREATED
+  CLOSED
+}
+
+enum DataSubjectRequestActivityVisibility {
+  INTERNAL
+  PUBLIC
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -255,28 +314,31 @@ model User {
   updatedAt    DateTime @updatedAt
 
   clientProfiles     ClientProfile[]
-  createdTemplates   DocumentTemplate[]      @relation("TemplateCreatedBy")
-  approvedTemplates  DocumentTemplate[]      @relation("TemplateApprovedBy")
+  createdTemplates   DocumentTemplate[]           @relation("TemplateCreatedBy")
+  approvedTemplates  DocumentTemplate[]           @relation("TemplateApprovedBy")
   generationJobs     DocumentGenerationJob[]
   generatedDocuments GeneratedDocument[]
   auditLogs          AuditLog[]
   formSubmissions    FormSubmission[]
-  createdInputs      DocumentInput[]         @relation("DocumentInputCreatedBy")
-  updatedInputs      DocumentInput[]         @relation("DocumentInputUpdatedBy")
-  submittedInputs    DocumentInput[]         @relation("DocumentInputSubmittedBy")
-  assignedLeads      Lead[]                  @relation("LeadAssignedTo")
-  ownedOrganizations Organization[]          @relation("OrganizationOwner")
+  createdInputs      DocumentInput[]              @relation("DocumentInputCreatedBy")
+  updatedInputs      DocumentInput[]              @relation("DocumentInputUpdatedBy")
+  submittedInputs    DocumentInput[]              @relation("DocumentInputSubmittedBy")
+  assignedLeads      Lead[]                       @relation("LeadAssignedTo")
+  ownedOrganizations Organization[]               @relation("OrganizationOwner")
   authoredCrmNotes   CrmNote[]
-  assignedCrmTasks   CrmTask[]               @relation("CrmTaskAssignedTo")
-  createdCrmTasks    CrmTask[]               @relation("CrmTaskCreatedBy")
-  ownedOrders        Order[]                 @relation("OrderOwner")
-  reviewedPayments   Payment[]               @relation("PaymentReviewedBy")
-  requestedInvoices  Invoice[]               @relation("InvoiceRequestedBy")
-  reviewedDocuments  GeneratedDocument[]     @relation("GeneratedDocumentReviewedBy")
+  assignedCrmTasks   CrmTask[]                    @relation("CrmTaskAssignedTo")
+  createdCrmTasks    CrmTask[]                    @relation("CrmTaskCreatedBy")
+  ownedOrders        Order[]                      @relation("OrderOwner")
+  reviewedPayments   Payment[]                    @relation("PaymentReviewedBy")
+  requestedInvoices  Invoice[]                    @relation("InvoiceRequestedBy")
+  reviewedDocuments  GeneratedDocument[]          @relation("GeneratedDocumentReviewedBy")
   documentDownloads  DocumentDownload[]
-  reportedBreaches   DataBreachIncident[]    @relation("BreachReportedBy")
-  assignedBreaches   DataBreachIncident[]    @relation("BreachAssignedTo")
-  breachActivities   DataBreachActivity[]    @relation("BreachActivityActor")
+  reportedBreaches   DataBreachIncident[]         @relation("BreachReportedBy")
+  assignedBreaches   DataBreachIncident[]         @relation("BreachAssignedTo")
+  breachActivities   DataBreachActivity[]         @relation("BreachActivityActor")
+  reportedDsrs       DataSubjectRequest[]         @relation("DsrReportedBy")
+  assignedDsrs       DataSubjectRequest[]         @relation("DsrAssignedTo")
+  dsrActivities      DataSubjectRequestActivity[]
 }
 
 model Organization {
@@ -300,21 +362,22 @@ model Organization {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
-  owner              User?                   @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  clientProfiles     ClientProfile[]
-  generationJobs     DocumentGenerationJob[]
-  generatedDocuments GeneratedDocument[]
-  auditLogs          AuditLog[]
-  formSubmissions    FormSubmission[]
-  leads              Lead[]
-  contactPersons     ContactPerson[]
-  crmNotes           CrmNote[]
-  crmTasks           CrmTask[]
-  orders             Order[]
-  orderItems         OrderItem[]
-  documentInputs     DocumentInput[]
-  documentDownloads  DocumentDownload[]
-  breachIncidents    DataBreachIncident[]
+  owner               User?                   @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  clientProfiles      ClientProfile[]
+  generationJobs      DocumentGenerationJob[]
+  generatedDocuments  GeneratedDocument[]
+  auditLogs           AuditLog[]
+  formSubmissions     FormSubmission[]
+  leads               Lead[]
+  contactPersons      ContactPerson[]
+  crmNotes            CrmNote[]
+  crmTasks            CrmTask[]
+  orders              Order[]
+  orderItems          OrderItem[]
+  documentInputs      DocumentInput[]
+  documentDownloads   DocumentDownload[]
+  breachIncidents     DataBreachIncident[]
+  dataSubjectRequests DataSubjectRequest[]
 
   @@index([ownerId])
   @@index([status, createdAt])
@@ -814,30 +877,33 @@ model CrmNote {
 }
 
 model CrmTask {
-  id               String        @id @default(cuid())
-  leadId           String?
-  organizationId   String?
-  breachIncidentId String?
-  title            String
-  description      String?
-  status           CrmTaskStatus @default(OPEN)
-  priority         LeadPriority  @default(NORMAL)
-  dueAt            DateTime?
-  assignedToId     String?
-  createdById      String
-  completedAt      DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                   String        @id @default(cuid())
+  leadId               String?
+  organizationId       String?
+  breachIncidentId     String?
+  dataSubjectRequestId String?
+  title                String
+  description          String?
+  status               CrmTaskStatus @default(OPEN)
+  priority             LeadPriority  @default(NORMAL)
+  dueAt                DateTime?
+  assignedToId         String?
+  createdById          String
+  completedAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  lead           Lead?               @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  breachIncident DataBreachIncident? @relation(fields: [breachIncidentId], references: [id], onDelete: SetNull)
-  assignedTo     User?               @relation("CrmTaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy      User                @relation("CrmTaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  lead               Lead?               @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  organization       Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  breachIncident     DataBreachIncident? @relation(fields: [breachIncidentId], references: [id], onDelete: SetNull)
+  dataSubjectRequest DataSubjectRequest? @relation(fields: [dataSubjectRequestId], references: [id], onDelete: SetNull)
+  assignedTo         User?               @relation("CrmTaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy          User                @relation("CrmTaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([leadId, status])
   @@index([organizationId, status])
   @@index([breachIncidentId, status])
+  @@index([dataSubjectRequestId, status])
   @@index([assignedToId, status, dueAt])
   @@index([createdById])
   @@index([dueAt])
@@ -913,4 +979,70 @@ model DataBreachActivity {
   @@index([incidentId, createdAt])
   @@index([actorId])
   @@index([visibility, createdAt])
+}
+
+model DataSubjectRequest {
+  id                    String                               @id @default(cuid())
+  organizationId        String
+  reportedById          String?
+  assignedToId          String?
+  requesterName         String
+  requesterEmail        String
+  requesterPhone        String?
+  relationship          String?
+  type                  DataSubjectRequestType
+  status                DataSubjectRequestStatus             @default(DRAFT)
+  priority              DataSubjectRequestPriority           @default(NORMAL)
+  requestDescription    String                               @db.Text
+  requestChannel        String?                              @default("PORTAL")
+  additionalInformation String?                              @db.Text
+  receivedAt            DateTime?
+  dueAt                 DateTime?
+  extensionUntil        DateTime?
+  extensionReason       String?                              @db.Text
+  closedAt              DateTime?
+  verificationStatus    DataSubjectRequestVerificationStatus @default(NOT_STARTED)
+  verificationMethod    String?
+  verificationNote      String?                              @db.Text
+  verifiedAt            DateTime?
+  responseSummary       String?                              @db.Text
+  responseDraft         String?                              @db.Text
+  responseDecision      String?
+  responsePreparedAt    DateTime?
+  responseSentAt        DateTime?
+  decisionRationale     String?                              @db.Text
+  createdAt             DateTime                             @default(now())
+  updatedAt             DateTime                             @updatedAt
+
+  organization Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reportedBy   User?                        @relation("DsrReportedBy", fields: [reportedById], references: [id], onDelete: SetNull)
+  assignedTo   User?                        @relation("DsrAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  activities   DataSubjectRequestActivity[]
+  tasks        CrmTask[]
+
+  @@index([organizationId, status, dueAt])
+  @@index([reportedById, createdAt])
+  @@index([assignedToId, status, dueAt])
+  @@index([status, dueAt])
+  @@index([type, createdAt])
+  @@index([requesterEmail])
+}
+
+model DataSubjectRequestActivity {
+  id         String                               @id @default(cuid())
+  requestId  String
+  actorId    String?
+  type       DataSubjectRequestActivityType
+  visibility DataSubjectRequestActivityVisibility @default(INTERNAL)
+  title      String
+  note       String?                              @db.Text
+  metadata   Json?
+  createdAt  DateTime                             @default(now())
+
+  request DataSubjectRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor   User?              @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([type, createdAt])
 }

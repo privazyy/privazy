@@ -25,6 +25,8 @@ Completed in this PR:
 3. Validated, bounded lead and organization APIs.
 4. Safe conversion, internal notes, assignees and transactional audit.
 5. Public IOD intake connected directly to Lead.
+6. DSR foundation: data model, portal intake, CRM operations, identity verification and response preparation.
+7. Next: notifications and event workflows for DSR deadlines, assignments and response preparation.
 
 Next recommended PR: `[crm] add tasks notes and activity timeline`.
 
