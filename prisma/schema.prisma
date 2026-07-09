@@ -99,11 +99,41 @@ enum CrmNoteVisibility {
   INTERNAL
 }
 
+enum CrmNoteType {
+  GENERAL
+  CALL
+  EMAIL
+  MEETING
+  LEGAL
+  INTERNAL
+}
+
 enum CrmTaskStatus {
   OPEN
   IN_PROGRESS
   DONE
   CANCELLED
+}
+
+enum CrmActivityType {
+  LEAD_CREATED
+  LEAD_UPDATED
+  LEAD_STATUS_CHANGED
+  LEAD_ASSIGNED
+  LEAD_CONVERTED
+  ORGANIZATION_CREATED
+  ORGANIZATION_UPDATED
+  NOTE_ADDED
+  NOTE_UPDATED
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  TASK_CANCELLED
+  EMAIL_LOGGED
+  CALL_LOGGED
+  MEETING_LOGGED
+  SYSTEM_EVENT
 }
 
 model User {
@@ -127,6 +157,7 @@ model User {
   authoredCrmNotes   CrmNote[]
   assignedCrmTasks   CrmTask[]               @relation("CrmTaskAssignedTo")
   createdCrmTasks    CrmTask[]               @relation("CrmTaskCreatedBy")
+  crmActivities      CrmActivity[]
 }
 
 model Organization {
@@ -160,6 +191,7 @@ model Organization {
   contactPersons     ContactPerson[]
   crmNotes           CrmNote[]
   crmTasks           CrmTask[]
+  crmActivities      CrmActivity[]
 
   @@index([ownerId])
   @@index([status, createdAt])
@@ -324,6 +356,7 @@ model Lead {
   contactPersons ContactPerson[]
   notes          CrmNote[]
   tasks          CrmTask[]
+  activities     CrmActivity[]
 
   @@index([status, createdAt])
   @@index([source, createdAt])
@@ -361,6 +394,7 @@ model CrmNote {
   organizationId String?
   authorId       String
   body           String
+  type           CrmNoteType       @default(GENERAL)
   visibility     CrmNoteVisibility @default(INTERNAL)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -372,6 +406,7 @@ model CrmNote {
   @@index([leadId, createdAt])
   @@index([organizationId, createdAt])
   @@index([authorId])
+  @@index([type, createdAt])
 }
 
 model CrmTask {
@@ -386,6 +421,7 @@ model CrmTask {
   assignedToId   String?
   createdById    String
   completedAt    DateTime?
+  cancelledAt    DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -399,4 +435,27 @@ model CrmTask {
   @@index([assignedToId, status, dueAt])
   @@index([createdById])
   @@index([dueAt])
+  @@index([status])
+}
+
+model CrmActivity {
+  id             String          @id @default(cuid())
+  leadId         String?
+  organizationId String?
+  actorId        String?
+  type           CrmActivityType
+  title          String
+  description    String?
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+
+  lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([actorId])
+  @@index([type, createdAt])
+  @@index([createdAt])
 }

@@ -47,11 +47,27 @@ type NoteRecord = Prisma.CrmNoteGetPayload<{
   include: { author: { select: { id: true; name: true; email: true } } };
 }>;
 
-type TaskRecord = Prisma.CrmTaskGetPayload<{
-  include: {
-    assignedTo: { select: { id: true; name: true; email: true } };
-    createdBy: { select: { id: true; name: true; email: true } };
-  };
+type TaskRecord = {
+  id: string;
+  leadId: string | null;
+  organizationId: string | null;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  dueAt: Date | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  assignedTo: { id: string; name: string | null; email: string } | null;
+  createdBy?: { id: string; name: string | null; email: string };
+  lead?: { id: string; companyName: string; fullName: string } | null;
+  organization?: { id: string; name: string } | null;
+};
+
+type ActivityRecord = Prisma.CrmActivityGetPayload<{
+  include: { actor: { select: { id: true; name: true; email: true } } };
 }>;
 
 export function serializeLeadListItem(lead: LeadListRecord) {
@@ -166,6 +182,7 @@ export function serializeCrmNote(note: NoteRecord) {
   return {
     id: note.id,
     body: note.body,
+    type: note.type,
     visibility: note.visibility,
     author: note.author,
     leadId: note.leadId,
@@ -183,10 +200,63 @@ export function serializeCrmTask(task: TaskRecord) {
     status: task.status,
     priority: task.priority,
     dueAt: task.dueAt,
+    leadId: task.leadId,
+    organizationId: task.organizationId,
+    lead: "lead" in task ? task.lead : undefined,
+    organization: "organization" in task ? task.organization : undefined,
     assignedTo: task.assignedTo,
     createdBy: task.createdBy,
     completedAt: task.completedAt,
+    cancelledAt: task.cancelledAt,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
   };
+}
+
+export function serializeCrmActivity(activity: ActivityRecord) {
+  return {
+    id: activity.id,
+    type: activity.type,
+    title: activity.title,
+    description: activity.description,
+    actor: activity.actor,
+    leadId: activity.leadId,
+    organizationId: activity.organizationId,
+    createdAt: activity.createdAt,
+    metadata: redactActivityMetadata(activity.metadata),
+  };
+}
+
+export function serializeTimelineItem(item: {
+  id: string;
+  kind: "activity" | "note" | "task";
+  type: string;
+  title: string;
+  description: string | null;
+  actor?: { id: string; name: string | null; email: string } | null;
+  status?: string | null;
+  priority?: string | null;
+  createdAt: Date;
+}) {
+  return item;
+}
+
+function redactActivityMetadata(metadata: Prisma.JsonValue) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return undefined;
+  const allowedKeys = new Set([
+    "afterStatus",
+    "assignedToId",
+    "beforeStatus",
+    "changedFields",
+    "leadId",
+    "organizationId",
+    "priority",
+    "resourceId",
+    "resourceType",
+    "status",
+    "taskId",
+  ]);
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([key, value]) => allowedKeys.has(key) && typeof value !== "object"),
+  );
 }

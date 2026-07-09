@@ -100,11 +100,94 @@ export const crmNoteCreateSchema = z
     leadId: z.string().trim().min(1).max(64).optional(),
     organizationId: z.string().trim().min(1).max(64).optional(),
     body: z.string().trim().min(1).max(10_000),
+    type: z.enum(["GENERAL", "CALL", "EMAIL", "MEETING", "LEGAL", "INTERNAL"]).default("GENERAL"),
+    visibility: z.literal("INTERNAL").default("INTERNAL"),
   })
   .strict()
   .refine((value) => Boolean(value.leadId || value.organizationId), "Notatka wymaga leada lub organizacji.");
 
-export const crmNoteBodySchema = z.object({ body: z.string().trim().min(1).max(10_000) }).strict();
+export const crmNoteBodySchema = z
+  .object({
+    body: z.string().trim().min(1).max(10_000),
+    type: z.enum(["GENERAL", "CALL", "EMAIL", "MEETING", "LEGAL", "INTERNAL"]).default("GENERAL"),
+    visibility: z.literal("INTERNAL").default("INTERNAL"),
+  })
+  .strict();
+
+export const crmNoteUpdateSchema = z
+  .object({
+    body: z.string().trim().min(1).max(10_000).optional(),
+    type: z.enum(["GENERAL", "CALL", "EMAIL", "MEETING", "LEGAL", "INTERNAL"]).optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "Podaj co najmniej jedno pole.");
+
+const dateString = z
+  .string()
+  .trim()
+  .max(40)
+  .refine((value) => !Number.isNaN(Date.parse(value)), "Nieprawidlowa data.");
+
+export const createTaskSchema = z
+  .object({
+    leadId: z.string().trim().min(1).max(64).optional(),
+    organizationId: z.string().trim().min(1).max(64).optional(),
+    assignedToId: z.string().trim().max(64).nullable().optional(),
+    title: z.string().trim().min(2).max(180),
+    description: z.string().trim().max(2_000).nullable().optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).default("NORMAL"),
+    dueAt: dateString.nullable().optional(),
+  })
+  .strict()
+  .refine((value) => Boolean(value.leadId || value.organizationId), "Zadanie wymaga leada lub organizacji.");
+
+export const updateTaskSchema = z
+  .object({
+    assignedToId: z.string().trim().max(64).nullable().optional(),
+    title: z.string().trim().min(2).max(180).optional(),
+    description: z.string().trim().max(2_000).nullable().optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+    dueAt: dateString.nullable().optional(),
+    status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]).optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "Podaj co najmniej jedno pole.");
+
+export const changeTaskStatusSchema = z
+  .object({
+    status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+export const assignTaskSchema = z
+  .object({
+    assignedToId: z.string().trim().max(64).nullable(),
+  })
+  .strict();
+
+export const taskListQuerySchema = z
+  .object({
+    q: z.string().trim().max(160).optional(),
+    status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]).optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+    assignedToId: z.string().trim().max(64).optional(),
+    leadId: z.string().trim().max(64).optional(),
+    organizationId: z.string().trim().max(64).optional(),
+    dueBefore: dateString.optional(),
+    dueAfter: dateString.optional(),
+    cursor: z.string().trim().max(64).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
+
+export const timelineQuerySchema = z
+  .object({
+    type: z.string().trim().max(80).optional(),
+    cursor: z.string().trim().max(64).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
 
 export const leadStatusChangeSchema = z
   .object({

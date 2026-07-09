@@ -56,6 +56,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     generatedDocuments,
     formSubmissions,
     auditLogs,
+    crmTasks,
     counts,
   ] = await Promise.all([
     prisma.lead.findMany({
@@ -143,6 +144,16 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         user: true,
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.crmTask.findMany({
+      include: {
+        assignedTo: { select: { email: true, name: true } },
+        createdBy: { select: { email: true, name: true } },
+        lead: { select: { id: true, companyName: true, fullName: true } },
+        organization: { select: { id: true, name: true } },
+      },
+      orderBy: [{ status: "asc" }, { dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
       take: 100,
     }),
     getCounts(),
@@ -295,6 +306,29 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     status: { label: "Zapisany", tone: "success" },
   }));
 
+  const taskRows: TableRow[] = crmTasks.map((task) => {
+    const status = taskStatusLabel(task.status);
+    const owner = task.assignedTo?.name ?? task.assignedTo?.email ?? "Nieprzypisane";
+    const relation = task.lead?.companyName ?? task.organization?.name ?? "CRM";
+
+    return {
+      cells: [
+        status,
+        taskPriorityLabel(task.priority),
+        owner,
+        relation,
+        task.dueAt ? formatDate(task.dueAt) : "-",
+        task.completedAt ? formatDate(task.completedAt) : task.cancelledAt ? formatDate(task.cancelledAt) : "-",
+        "",
+      ],
+      id: task.id,
+      primary: task.title,
+      secondary: task.description ?? relation,
+      status: { label: status, tone: taskStatusTone(task.status, task.dueAt) },
+      tag: { label: taskPriorityLabel(task.priority), tone: ["HIGH", "URGENT"].includes(task.priority) ? "danger" : "neutral" },
+    };
+  });
+
   const userRows: TableRow[] = users.map((user) => {
     const role = roleLabels[user.role];
 
@@ -329,6 +363,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const activeTemplates = templates.filter((template) => template.status === "ACTIVE").length;
   const hotLeads = leads.filter((lead) => ["HIGH", "URGENT"].includes(lead.priority)).length;
   const pipelineValue = leads.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0);
+  const now = new Date();
+  const overdueTasks = crmTasks.filter((task) => task.dueAt && task.dueAt < now && !["DONE", "CANCELLED"].includes(task.status));
 
   const lists: CrmDatabaseData["lists"] = {
     accounting: emptyListModule({
@@ -609,13 +645,23 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       subtitle: "Ustawienia pokazują faktyczne role i modele dostępne w schemacie Prisma.",
       title: "Ustawienia",
     }),
-    tasks: makeEmptyModule("tasks", "SquareCheckBig", "Zadania", "W aktualnym schemacie nie ma jeszcze tabel zadań operacyjnych.", "Utwórz zadanie", [
-      "Zadanie",
-      "Status",
-      "Właściciel",
-      "Termin",
-      "",
-    ]),
+    tasks: makeModule({
+      action: "Utwórz zadanie",
+      columns: ["Zadanie", "Status", "Priorytet", "Przypisany", "Powiązanie", "Termin", "Zamknięto", ""],
+      emptyMessage: "Brak zadań CRM w bazie danych.",
+      icon: "SquareCheckBig",
+      kpis: [
+        { icon: "SquareCheckBig", label: "Zadania CRM", value: String(counts.crmTasks), tone: "brand" },
+        { icon: "Clock3", label: "Otwarte", value: String(crmTasks.filter((task) => task.status === "OPEN" || task.status === "IN_PROGRESS").length), tone: "warning" },
+        { icon: "TriangleAlert", label: "Po terminie", value: String(overdueTasks.length), tone: overdueTasks.length > 0 ? "danger" : "neutral" },
+        { icon: "BadgeCheck", label: "Zakończone", value: String(crmTasks.filter((task) => task.status === "DONE").length), tone: "success" },
+      ],
+      route: "tasks",
+      rows: taskRows,
+      subtitle: "Operacyjne zadania CRM powiązane z leadami i organizacjami.",
+      title: "Zadania",
+      filters: ["Wszystkie", "Moje", "Otwarte", "Dziś", "Po terminie", "Zakończone"].map((label) => ({ label })),
+    }),
     sales: makeModule({
       action: "Nowa oferta",
       columns: ["Szansa / klient", "Źródło", "Branża", "Wynik", "Wartość", "Status", "Priorytet", "Opiekun", "Aktywność", ""],
@@ -731,6 +777,12 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         ...(activeJobs > 0
           ? [{ due: "dziś", tag: "Dokumenty", title: "Dokończ aktywne joby generowania dokumentów", tone: "warning" as Tone }]
           : []),
+        ...overdueTasks.slice(0, 3).map((task) => ({
+          due: task.dueAt ? formatDate(task.dueAt) : "po terminie",
+          tag: "Zadania",
+          title: task.title,
+          tone: "danger" as Tone,
+        })),
         ...(hotLeads > 0
           ? [{ due: "dziś", tag: "Sprzedaż", title: "Skontaktuj się z gorącymi leadami IOD", tone: "danger" as Tone }]
           : []),
@@ -751,6 +803,9 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       generatedDocumentsCount,
       formSubmissionsCount,
       auditLogsCount,
+      crmNotesCount,
+      crmTasksCount,
+      crmActivitiesCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
@@ -760,11 +815,17 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       prisma.generatedDocument.count(),
       prisma.formSubmission.count(),
       prisma.auditLog.count(),
+      prisma.crmNote.count(),
+      prisma.crmTask.count(),
+      prisma.crmActivity.count(),
     ]);
 
     return {
       auditLogs: auditLogsCount,
       clientProfiles,
+      crmActivities: crmActivitiesCount,
+      crmNotes: crmNotesCount,
+      crmTasks: crmTasksCount,
       formSubmissions: formSubmissionsCount,
       generatedDocuments: generatedDocumentsCount,
       generationJobs,
@@ -891,6 +952,27 @@ function leadPriorityLabel(priority: string) {
     HIGH: "Wysoki",
     URGENT: "Pilny",
   }[priority] ?? priority;
+}
+
+function taskPriorityLabel(priority: string) {
+  return leadPriorityLabel(priority);
+}
+
+function taskStatusLabel(status: string) {
+  return {
+    CANCELLED: "Anulowane",
+    DONE: "Zakończone",
+    IN_PROGRESS: "W toku",
+    OPEN: "Otwarte",
+  }[status] ?? status;
+}
+
+function taskStatusTone(status: string, dueAt: Date | null): Tone {
+  if (status === "DONE") return "success";
+  if (status === "CANCELLED") return "neutral";
+  if (dueAt && dueAt < new Date()) return "danger";
+  if (status === "IN_PROGRESS") return "warning";
+  return "brand";
 }
 
 function organizationStatusLabel(status: string) {
