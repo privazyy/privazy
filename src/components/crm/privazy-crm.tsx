@@ -30,6 +30,7 @@ const detailRoutes = new Set<CrmRoute>([
   "lead-detail",
   "client-detail",
   "doc-review",
+  "document-input-detail",
   "breach-detail",
   "request-detail",
   "outsourcing-detail",
@@ -807,6 +808,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
       breaches: data.lists.breaches,
       clients: data.lists.clients,
       documents: data.lists.documents,
+      "document-inputs": data.lists.documentInputs,
       newsletter: data.lists.newsletter,
       outsourcing: data.lists.outsourcing,
       products: data.lists.products,
@@ -818,6 +820,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
     if (route === "lead-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="lead" onBack={() => setRouteAndClose("leads")} />;
     if (route === "client-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="organization" onBack={() => setRouteAndClose("clients")} />;
     if (route === "doc-review" && selectedRow) return <RecordDetail backLabel="Wróć do dokumentów" columns={data.lists.documents.columns} icon="FileSearch" onBack={() => setRouteAndClose("documents")} record={selectedRow} title="Szczegóły dokumentu" />;
+    if (route === "document-input-detail" && selectedRow) return <RecordDetail backLabel="Wróć do formularzy" columns={data.lists.documentInputs.columns} icon="FileInput" onBack={() => setRouteAndClose("document-inputs")} record={selectedRow} title="Szczegóły formularza dokumentu" />;
     if (route === "breach-detail" && selectedRow) return <RecordDetail backLabel="Wróć do naruszeń" columns={data.lists.breaches.columns} icon="TriangleAlert" onBack={() => setRouteAndClose("breaches")} record={selectedRow} title="Szczegóły naruszenia" />;
     if (route === "request-detail" && selectedRow) return <RecordDetail backLabel="Wróć do żądań" columns={data.lists.requests.columns} icon="UserCog" onBack={() => setRouteAndClose("requests")} record={selectedRow} title="Szczegóły żądania" />;
     if (route === "outsourcing-detail" && selectedRow) return <RecordDetail backLabel="Wróć do outsourcingu" columns={data.lists.outsourcing.columns} icon="ShieldCheck" onBack={() => setRouteAndClose("outsourcing")} record={selectedRow} title="Szczegóły abonamentu" />;
@@ -826,6 +829,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
     if (route === "lead-detail") return <MissingRecordDetail icon="UserPlus" onBack={() => setRouteAndClose("leads")} title="Szczegóły leada" />;
     if (route === "client-detail") return <MissingRecordDetail icon="Building2" onBack={() => setRouteAndClose("clients")} title="Szczegóły klienta" />;
     if (route === "doc-review") return <MissingRecordDetail icon="FileSearch" onBack={() => setRouteAndClose("documents")} title="Szczegóły dokumentu" />;
+    if (route === "document-input-detail") return <MissingRecordDetail icon="FileInput" onBack={() => setRouteAndClose("document-inputs")} title="Szczegóły formularza dokumentu" />;
     if (route === "breach-detail") return <MissingRecordDetail icon="TriangleAlert" onBack={() => setRouteAndClose("breaches")} title="Szczegóły naruszenia" />;
     if (route === "request-detail") return <MissingRecordDetail icon="UserCog" onBack={() => setRouteAndClose("requests")} title="Szczegóły żądania" />;
     if (route === "outsourcing-detail") return <MissingRecordDetail icon="ShieldCheck" onBack={() => setRouteAndClose("outsourcing")} title="Szczegóły abonamentu" />;
