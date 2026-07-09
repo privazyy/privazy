@@ -11,7 +11,6 @@
 | Remaining CRM modules | Mostly scaffold | Unchanged | Open |
 
 The CRM audit moves from `PARTIAL` to `IMPROVED`, not complete. Documents/generators, portal, breach/DSR, CMS, automation and production operations remain open.
-
 ## 2026-07-10 operational CRM update
 
 | Finding | Before | After this PR | State |
@@ -23,3 +22,23 @@ The CRM audit moves from `PARTIAL` to `IMPROVED`, not complete. Documents/genera
 | Commerce/breach/DSR | No dedicated models on this base | Documented as missing/partial instead of mocked as ready | Open |
 
 The CRM moves toward an operational core. It is still not a complete CRM and is not production-ready.
+
+## CRM commerce/document operations update
+
+Status after `[crm] add orders payments invoices and document operations`:
+
+- CRM orders: ADDED / PARTIAL. Database models, CRM list/detail, API reads, notes, owner assignment, internal status, and sandbox cancel were added.
+- CRM payments: ADDED / PARTIAL. Mock/sandbox payments and safe events were added. Live payments remain out of scope.
+- CRM invoices: ADDED / PARTIAL. Mock/sandbox invoice request/retry/cancel were added. Live invoices remain disabled.
+- CRM document operations: ADDED / PARTIAL. Job retry, generated document review, file metadata, and download history were added.
+- CRM operational visibility: IMPROVED. Order timeline uses `AuditLog` because activity timeline is not guaranteed on `main`.
+
+Still open:
+- Live payments.
+- Live invoices.
+- Full client document input flow.
+- Full client portal delivery.
+- Full document generator orchestration.
+- Breach/DSR/CMS/newsletter.
+- Staging readiness.
+- Production readiness.

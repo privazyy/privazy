@@ -8,8 +8,16 @@ export type CrmRoute =
   | "client-detail"
   | "orgs"
   | "orders"
+  | "order-detail"
+  | "payments"
+  | "payment-detail"
+  | "invoices"
+  | "invoice-detail"
   | "documents"
   | "doc-review"
+  | "document-jobs"
+  | "document-job-detail"
+  | "generated-document-detail"
   | "packages"
   | "products"
   | "product-editor"
@@ -143,10 +151,12 @@ export type CrmDatabaseData = {
     breaches: CrmListModule;
     clients: CrmListModule;
     documents: CrmListModule;
+    invoices: CrmListModule;
     leads: CrmListModule;
     newsletter: CrmListModule;
     outsourcing: CrmListModule;
     platform: CrmListModule;
+    payments: CrmListModule;
     products: CrmListModule;
     requests: CrmListModule;
   };
@@ -166,6 +176,16 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Sprzedaż i realizacja",
+    items: [
+      { route: "orders", label: "Zamówienia", icon: "ShoppingCart" },
+      { route: "payments", label: "Płatności", icon: "CreditCard" },
+      { route: "invoices", label: "Faktury", icon: "ReceiptText" },
+      { route: "document-jobs", label: "Joby dokumentów", icon: "FileCog" },
+      { route: "documents", label: "Dokumenty", icon: "FileText" },
+    ],
+  },
+  {
     label: "Kontrola",
     items: [{ route: "admin", label: "Audit log", icon: "ShieldHalf" }],
   },
@@ -173,7 +193,12 @@ export const navGroups: NavGroup[] = [
 export const routeAliases: Partial<Record<CrmRoute, CrmRoute>> = {
   "lead-detail": "leads",
   "client-detail": "clients",
+  "order-detail": "orders",
+  "payment-detail": "payments",
+  "invoice-detail": "invoices",
   "doc-review": "documents",
+  "document-job-detail": "document-jobs",
+  "generated-document-detail": "documents",
   "breach-detail": "breaches",
   "request-detail": "requests",
   "outsourcing-detail": "outsourcing",
