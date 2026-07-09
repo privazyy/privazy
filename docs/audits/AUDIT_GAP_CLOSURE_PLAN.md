@@ -1,3 +1,21 @@
+# Client Portal Gap Closure Update - 2026-07-09
+
+Closed or reduced:
+- Added protected `/platforma` foundation.
+- Added portal-specific service/permission/serializer/API layers.
+- Added scoped order, document input, generated document, organization views.
+- Added secure generated-document download endpoint.
+- Added portal docs and smoke checklist.
+
+Still open:
+- Rehearse new portal migration in disposable/staging database.
+- Merge/reconcile earlier commerce and document-input draft PRs.
+- Add production-ready privacy policy generator.
+- Add seeded cross-tenant/API tests.
+- Add breach incident module.
+
+Next recommended PR: `[breach] add personal data breach incident module`.
+
 # Audit Gap Closure Plan
 
 Completed in this PR:
