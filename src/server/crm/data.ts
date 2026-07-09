@@ -250,7 +250,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       primary: template.name,
-      secondary: template.fileKey,
+      secondary: `${template.type} v${template.version}`,
       status: { label: status, tone: statusTone(status) },
     };
   });

@@ -1,3 +1,15 @@
+# Client Portal Foundation Update - 2026-07-09
+
+| Finding | Status after PR | Evidence |
+| --- | --- | --- |
+| Client portal routes missing | ADDED / PARTIAL | `/platforma` route group and `/client` redirect added. |
+| Client dashboard missing | ADDED / PARTIAL | Dashboard shows scoped metrics, alerts, recent orders and documents. |
+| Client order view missing | ADDED / PARTIAL | Minimal `PortalOrder` and `PortalOrderItem` views added. |
+| Client document view missing | ADDED / PARTIAL | Document input status and generated documents visible. |
+| Secure download missing in portal | PARTIAL | Portal download endpoint signs existing `GeneratedDocument` files and logs download. |
+| Cross-tenant protection | ENFORCED / PARTIAL | Queries filter by `ClientProfile`; needs seeded security tests. |
+| Production readiness | NOT FIXED | No production migration/deploy; staging remains NO. |
+
 # Audit Findings
 
 | Finding | Before | After this PR | State |
