@@ -9,5 +9,9 @@
 | Unbounded list semantics | No reusable paging contract | Cursor, defaults and max 100 | P2-004 partial |
 | Public IOD abuse protection | No durable limiter/Turnstile enforcement on `main` | Existing route behavior retained | P1 open |
 | Remaining CRM modules | Mostly scaffold | Unchanged | Open |
+| Breach incident register | Visual scaffold only | `DataBreachIncident`, `DataBreachActivity`, portal/CRM API and 72h tracking | Added / partial |
+| Breach production readiness | Missing workflow and migration rehearsal | Foundation only, no prod deploy and no PUODO automation | NO |
 
 The CRM audit moves from `PARTIAL` to `IMPROVED`, not complete. Documents/generators, portal, breach/DSR, CMS, automation and production operations remain open.
+
+2026-07-10 breach update: the breach module is now a real foundation, but secure attachments, production migration, automatic authority submission and final legal automation remain out of scope.
