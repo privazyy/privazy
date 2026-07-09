@@ -69,6 +69,7 @@ export type TableRow = {
   actionRoute?: CrmRoute;
   avatar?: string;
   cells: string[];
+  id?: string;
   meta?: string;
   primary: string;
   secondary?: string;

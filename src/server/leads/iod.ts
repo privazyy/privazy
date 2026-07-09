@@ -147,11 +147,55 @@ export async function createIodLead(payload: IodLeadPayload, meta: RequestLeadMe
       },
     });
 
-    return { organization, submission };
+    const lead = await tx.lead.create({
+      data: {
+        source: "IOD_CHECKER",
+        status: "NEW",
+        priority: result.hot ? "URGENT" : result.level === "verification" ? "HIGH" : "NORMAL",
+        companyName: payload.contact.company,
+        fullName: payload.contact.name,
+        email: payload.contact.email.toLowerCase(),
+        phone: payload.contact.phone,
+        nip: payload.contact.nip,
+        industry: iodSectorLabels[payload.answers.branza],
+        companySize: payload.contact.employees ?? iodScaleLabels[payload.answers.skala],
+        estimatedValue: result.leadValue,
+        consentMarketing: payload.contact.marketingConsent,
+        consentPrivacy: true,
+        consentContact: true,
+        iodCheckerResult: complianceResult.obligation_status,
+        iodCheckerAnswersSnapshot: toJsonObject(payload.answers),
+        sourceDetails: toJsonObject({
+          page: payload.source?.page,
+          placement: payload.source?.placement,
+          campaign: payload.source?.campaign,
+          complianceStatus: complianceResult.obligation_status,
+          resultLevel: result.level,
+        }),
+        formSubmissionId: submission.id,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        organizationId: organization.id,
+        action: "crm.lead.public_created",
+        entityType: "Lead",
+        entityId: lead.id,
+        metadata: {
+          source: "IOD_CHECKER",
+          formSubmissionId: submission.id,
+        },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      },
+    });
+
+    return { lead, organization, submission };
   });
 
   return {
-    leadId: created.submission.id,
+    leadId: created.lead.id,
     organizationId: created.organization.id,
     result,
     complianceResult,
@@ -224,7 +268,7 @@ function estimateFallbackValue(level: IodResultLevel) {
   return 2900;
 }
 
-function toJsonObject(value: IodLeadSubmissionData) {
+function toJsonObject(value: object) {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
 }
 

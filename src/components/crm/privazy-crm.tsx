@@ -10,6 +10,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
+import { CrmCreateDialog, CrmRecordDetail } from "./crm-records";
 import {
   navGroups,
   routeAliases,
@@ -299,10 +300,10 @@ function DataTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, rowIndex) => (
+          {rows.map((row) => (
             <tr
               className="pvz-crm-row border-b border-[var(--border-subtle)] last:border-b-0"
-              key={`${row.primary}-${rowIndex}`}
+              key={row.id ?? `${row.primary}-${row.secondary ?? row.cells.join("|")}`}
             >
               <td className="px-4 py-4">
                 <div className="flex min-w-0 items-center gap-3">
@@ -499,24 +500,47 @@ function Dashboard({ data, onRoute }: { data: CrmDatabaseData["dashboard"]; onRo
 function LeadModule({
   data,
   leadView,
+  onCreate,
   onRoute,
   setLeadView,
 }: {
   data: CrmListModule;
   leadView: "list" | "kanban";
+  onCreate?: () => void;
   onRoute: (route: CrmRoute, row?: TableRow) => void;
   setLeadView: (view: "list" | "kanban") => void;
 }) {
   const rows = data.rows;
-  const groups = Array.from(new Set(["Nowy", "Do kontaktu", "Skontaktowano", "Zakwalifikowany", "Oferta wysłana", "Decyzja", ...rows.map((row) => row.status?.label ?? "Bez statusu")]));
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const filteredRows = rows.filter((row) => {
+    const matchesQuery = [row.primary, row.secondary, ...row.cells].join(" ").toLowerCase().includes(query.toLowerCase());
+    return matchesQuery && (status === "ALL" || row.status?.label === status);
+  });
+  const pageSize = 25;
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
+  const groups = Array.from(new Set(["Nowy", "Do kontaktu", "Skontaktowano", "Zakwalifikowany", "Oferta wysłana", "Wygrany", ...rows.map((row) => row.status?.label ?? "Bez statusu")]));
 
   return (
     <div className="space-y-5">
-      <ModuleHeader action={data.action} icon={data.icon} subtitle={data.subtitle} title={data.title} />
+      <ModuleHeader action={onCreate ? data.action : undefined} icon={data.icon} onPrimary={onCreate} subtitle={data.subtitle} title={data.title} />
       {data.kpis && <KpiGrid items={data.kpis} />}
       <Card padding="md" variant="flat">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <FilterBar labels={["Wszystkie", "Gorące leady", "Po checkerze", "Z koszyka", "Bez kontaktu >24h", "Moje"]} />
+          <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+            <Input aria-label="Szukaj leadów" placeholder="Szukaj firmy, osoby, e-maila…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+            <select
+              aria-label="Filtruj leady po statusie"
+              className="h-10 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-card)] px-3 text-sm text-[var(--text-strong)]"
+              value={status}
+              onChange={(event) => { setStatus(event.target.value); setPage(1); }}
+            >
+              <option value="ALL">Wszystkie statusy</option>
+              {Array.from(new Set(rows.map((row) => row.status?.label).filter(Boolean))).map((label) => <option key={label} value={label}>{label}</option>)}
+            </select>
+          </div>
           <div className="grid w-full grid-cols-2 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] p-1 sm:w-[220px]">
             {(["list", "kanban"] as const).map((view) => (
               <button
@@ -531,7 +555,7 @@ function LeadModule({
           </div>
         </div>
         {leadView === "list" ? (
-          <DataTable columns={data.columns} emptyMessage={data.emptyMessage} onRoute={onRoute} rows={rows} />
+          <DataTable columns={data.columns} emptyMessage={data.emptyMessage} onRoute={onRoute} rows={visibleRows} />
         ) : (
           <div className="pvz-h-scroll" data-responsive-scroll="true">
             <div className="grid min-w-[980px] grid-cols-6 gap-3">
@@ -539,10 +563,10 @@ function LeadModule({
                 <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3" key={group}>
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h3 className="text-sm font-bold text-[var(--text-strong)]">{group}</h3>
-                    <Badge tone="neutral">{rows.filter((row) => (row.status?.label ?? "Bez statusu") === group).length}</Badge>
+                    <Badge tone="neutral">{filteredRows.filter((row) => (row.status?.label ?? "Bez statusu") === group).length}</Badge>
                   </div>
                   <div className="space-y-3">
-                    {rows
+                    {filteredRows
                       .filter((row) => (row.status?.label ?? "Bez statusu") === group)
                       .map((row) => (
                         <button
@@ -559,7 +583,7 @@ function LeadModule({
                           </div>
                         </button>
                       ))}
-                    {rows.filter((row) => (row.status?.label ?? "Bez statusu") === group).length === 0 && (
+                    {filteredRows.filter((row) => (row.status?.label ?? "Bez statusu") === group).length === 0 && (
                       <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border-subtle)] p-3 text-center text-xs text-[var(--text-muted)]">
                         Brak rekordów
                       </div>
@@ -568,6 +592,13 @@ function LeadModule({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+        {leadView === "list" && pageCount > 1 && (
+          <div className="mt-4 flex items-center justify-end gap-3">
+            <Button disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => value - 1)}>Poprzednia</Button>
+            <span className="text-sm text-[var(--text-muted)]">Strona {page} z {pageCount}</span>
+            <Button disabled={page >= pageCount} size="sm" type="button" variant="outline" onClick={() => setPage((value) => value + 1)}>Następna</Button>
           </div>
         )}
       </Card>
@@ -688,14 +719,30 @@ function SimpleListModule({
   subtitle: string;
   title: string;
 }) {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const filteredRows = rows.filter((row) =>
+    [row.primary, row.secondary, ...row.cells].join(" ").toLowerCase().includes(query.toLowerCase()),
+  );
+  const pageSize = 25;
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <div className="space-y-5">
-      <ModuleHeader action={action} icon={icon} onPrimary={onAction} subtitle={subtitle} title={title} />
+      <ModuleHeader action={onAction ? action : undefined} icon={icon} onPrimary={onAction} subtitle={subtitle} title={title} />
       {kpis && <KpiGrid items={kpis} />}
       <Card padding="md" variant="flat">
         <div className="space-y-4">
-          <FilterBar />
-          <DataTable columns={columns} emptyMessage={emptyMessage} onRoute={onRoute} rows={rows} />
+          <Input aria-label={`Szukaj w ${title}`} placeholder="Szukaj w rekordach…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+          <DataTable columns={columns} emptyMessage={emptyMessage} onRoute={onRoute} rows={visibleRows} />
+          {pageCount > 1 && (
+            <div className="flex items-center justify-end gap-3">
+              <Button disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => value - 1)}>Poprzednia</Button>
+              <span className="text-sm text-[var(--text-muted)]">Strona {page} z {pageCount}</span>
+              <Button disabled={page >= pageCount} size="sm" type="button" variant="outline" onClick={() => setPage((value) => value + 1)}>Następna</Button>
+            </div>
+          )}
         </div>
       </Card>
     </div>
@@ -718,7 +765,7 @@ function PlatformModule({ data, onPreview }: { data: CrmListModule; onPreview: (
   );
 }
 
-export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
+export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmDatabaseData }) {
   const [route, setRoute] = useState<CrmRoute>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -729,6 +776,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
   const [leadView, setLeadView] = useState<"list" | "kanban">("list");
   const [platformPreview, setPlatformPreview] = useState(false);
   const [selectedRow, setSelectedRow] = useState<TableRow | null>(null);
+  const [createMode, setCreateMode] = useState<"lead" | "organization" | null>(null);
 
   const setRouteAndClose = (nextRoute: CrmRoute, row?: TableRow) => {
     setRoute(nextRoute);
@@ -737,6 +785,19 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
     setAddOpen(false);
     setNotifOpen(false);
     setCmdOpen(false);
+  };
+
+  const handleQuickAdd = (target: CrmRoute) => {
+    setAddOpen(false);
+    if (target === "leads") {
+      setCreateMode("lead");
+      return;
+    }
+    if (target === "clients") {
+      setCreateMode("organization");
+      return;
+    }
+    setRouteAndClose(target);
   };
 
   const content = (() => {
@@ -753,9 +814,9 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
     };
 
     if (route === "dashboard") return <Dashboard data={data.dashboard} onRoute={setRouteAndClose} />;
-    if (route === "leads") return <LeadModule data={data.lists.leads} leadView={leadView} onRoute={setRouteAndClose} setLeadView={setLeadView} />;
-    if (route === "lead-detail" && selectedRow) return <RecordDetail backLabel="Wróć do leadów" columns={data.lists.leads.columns} icon="UserPlus" onBack={() => setRouteAndClose("leads")} record={selectedRow} title="Szczegóły leada" />;
-    if (route === "client-detail" && selectedRow) return <RecordDetail backLabel="Wróć do klientów" columns={data.lists.clients.columns} icon="Building2" onBack={() => setRouteAndClose("clients")} record={selectedRow} title="Szczegóły klienta" />;
+    if (route === "leads") return <LeadModule data={data.lists.leads} leadView={leadView} onCreate={canMutate ? () => setCreateMode("lead") : undefined} onRoute={setRouteAndClose} setLeadView={setLeadView} />;
+    if (route === "lead-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="lead" onBack={() => setRouteAndClose("leads")} />;
+    if (route === "client-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="organization" onBack={() => setRouteAndClose("clients")} />;
     if (route === "doc-review" && selectedRow) return <RecordDetail backLabel="Wróć do dokumentów" columns={data.lists.documents.columns} icon="FileSearch" onBack={() => setRouteAndClose("documents")} record={selectedRow} title="Szczegóły dokumentu" />;
     if (route === "breach-detail" && selectedRow) return <RecordDetail backLabel="Wróć do naruszeń" columns={data.lists.breaches.columns} icon="TriangleAlert" onBack={() => setRouteAndClose("breaches")} record={selectedRow} title="Szczegóły naruszenia" />;
     if (route === "request-detail" && selectedRow) return <RecordDetail backLabel="Wróć do żądań" columns={data.lists.requests.columns} icon="UserCog" onBack={() => setRouteAndClose("requests")} record={selectedRow} title="Szczegóły żądania" />;
@@ -781,6 +842,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
           emptyMessage={list.emptyMessage}
           icon={list.icon}
           kpis={list.kpis}
+          onAction={route === "clients" && canMutate ? () => setCreateMode("organization") : undefined}
           onRoute={setRouteAndClose}
           rows={list.rows}
           subtitle={list.subtitle}
@@ -858,7 +920,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
                 )}
               </div>
               <div className="relative">
-                <Button type="button" onClick={() => { setAddOpen((value) => !value); setNotifOpen(false); }}>
+                <Button disabled={!canMutate} title={canMutate ? "Dodaj rekord" : "Tryb tylko do odczytu"} type="button" onClick={() => { setAddOpen((value) => !value); setNotifOpen(false); }}>
                   <CrmIcon name="Plus" />
                   <span className="hidden sm:inline">Dodaj</span>
                 </Button>
@@ -872,7 +934,7 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
                       ["Dodaj incydent", "breaches"],
                       ["Wyślij wiadomość", "inbox"],
                     ].map(([label, target]) => (
-                      <button className="flex h-10 w-full items-center gap-3 rounded-[var(--radius-sm)] px-2 text-sm font-semibold text-[var(--text-body)] hover:bg-[var(--surface-sunken)]" key={label} type="button" onClick={() => setRouteAndClose(target as CrmRoute)}>
+                      <button className="flex h-10 w-full items-center gap-3 rounded-[var(--radius-sm)] px-2 text-sm font-semibold text-[var(--text-body)] hover:bg-[var(--surface-sunken)]" key={label} type="button" onClick={() => handleQuickAdd(target as CrmRoute)}>
                         <CrmIcon className="size-4 text-[var(--brand-ink)]" name="Plus" />
                         {label}
                       </button>
@@ -979,6 +1041,8 @@ export function PrivazyCrm({ data }: { data: CrmDatabaseData }) {
           </Card>
         </div>
       )}
+
+      {createMode && <CrmCreateDialog mode={createMode} onClose={() => setCreateMode(null)} />}
     </div>
   );
 }
