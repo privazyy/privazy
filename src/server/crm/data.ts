@@ -27,6 +27,7 @@ import type {
   TableRow,
   Tone,
 } from "@/components/crm/crm-data";
+import { describeBreachDeadline } from "@/server/breach/breach-deadline";
 import { getPrisma } from "@/server/db/prisma";
 
 const defaultFilters = ["Wszystkie", "Aktywne", "Pilne", "Moje", "Do akceptacji"].map((label) => ({ label }));
@@ -155,6 +156,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     generatedDocuments,
     formSubmissions,
     tasks,
+    dataBreachIncidents,
     auditLogs,
     counts,
   ] = await Promise.all([
@@ -291,6 +293,15 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         organization: { select: { id: true, name: true } },
       },
       orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "desc" }],
+      take: 100,
+    }),
+    prisma.dataBreachIncident.findMany({
+      include: {
+        assignedTo: { select: { email: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        reportedBy: { select: { email: true, name: true } },
+      },
+      orderBy: [{ authorityNotificationDeadlineAt: "asc" }, { updatedAt: "desc" }],
       take: 100,
     }),
     prisma.auditLog.findMany({
@@ -535,7 +546,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       primary: template.name,
-      secondary: `Template ${template.id}`,
+      secondary: `${template.type} v${template.version}`,
       status: { label: status, tone: statusTone(status) },
     };
   });
@@ -632,6 +643,31 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     };
   });
 
+  const breachRows: TableRow[] = dataBreachIncidents.map((incident) => {
+    const deadline = describeBreachDeadline(incident.discoveredAt);
+
+    return {
+      actionRoute: "breach-detail",
+      cells: [
+        incident.organization.name,
+        incident.reportedBy.name ?? incident.reportedBy.email,
+        incident.title,
+        incident.status,
+        incident.riskLevel,
+        incident.assignedTo?.name ?? incident.assignedTo?.email ?? "-",
+        deadline.label,
+        "",
+      ],
+      id: incident.id,
+      primary: incident.id,
+      secondary: incident.title,
+      status: { label: incident.status, tone: statusTone(incident.status) },
+      tag: deadline.isOverdue
+        ? { label: "Po terminie", tone: "danger" as Tone }
+        : { label: deadline.label, tone: deadline.remainingMs < 12 * 60 * 60 * 1000 ? "warning" as Tone : "neutral" as Tone },
+    };
+  });
+
   const activeJobs = jobs.filter((job) => job.status === "PENDING" || job.status === "PROCESSING").length;
   const failedJobs = jobs.filter((job) => job.status === "FAILED").length;
   const activeOrders = orders.filter((order) => !["COMPLETED", "CANCELLED", "ARCHIVED"].includes(order.status)).length;
@@ -673,13 +709,21 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       title: "Baza wiedzy / Blog",
       subtitle: "Treści blogowe są obecnie źródłem kodowym, nie tabelą bazy danych.",
     }),
-    breaches: emptyListModule({
+    breaches: {
       action: "Dodaj naruszenie",
       columns: ["Nr sprawy", "Klient", "Zgłaszający", "Typ naruszenia", "Status", "Ryzyko", "IOD", "Termin 72h", ""],
+      emptyMessage: "Brak naruszen w rejestrze.",
       icon: "TriangleAlert",
+      kpis: [
+        { icon: "TriangleAlert", label: "Naruszenia", value: String(counts.dataBreachIncidents), tone: counts.dataBreachIncidents > 0 ? "danger" : "neutral" },
+        { icon: "Timer", label: "Aktywne 72h", value: String(dataBreachIncidents.filter((incident) => !["CLOSED", "CANCELLED"].includes(incident.status)).length), tone: "warning" },
+        { icon: "ShieldAlert", label: "Wysokie ryzyko", value: String(dataBreachIncidents.filter((incident) => incident.riskLevel === "HIGH").length), tone: "danger" },
+        { icon: "Activity", label: "Timeline", value: String(counts.dataBreachActivities), tone: "brand" },
+      ],
+      rows: breachRows,
       title: "Naruszenia",
-      subtitle: "W aktualnym schemacie nie ma jeszcze tabeli naruszeń ochrony danych.",
-    }),
+      subtitle: "Rejestr naruszen ochrony danych z terminem 72h i statusem obslugi.",
+    },
     clients: {
       action: "Dodaj klienta",
       columns: ["Organizacja", "NIP", "E-mail", "Telefon", "Branża", "Status", "Opiekun", "Utworzono", "Leady", ""],
@@ -1183,6 +1227,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       documentDownloadsCount,
       formSubmissionsCount,
       auditLogsCount,
+      dataBreachIncidentsCount,
+      dataBreachActivitiesCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
@@ -1202,6 +1248,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       prisma.documentDownload.count(),
       prisma.formSubmission.count(),
       prisma.auditLog.count(),
+      prisma.dataBreachIncident.count(),
+      prisma.dataBreachActivity.count(),
     ]);
 
     return {
@@ -1213,6 +1261,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       documentDownloads: documentDownloadsCount,
       documentFiles: documentFilesCount,
       documentInputs: documentInputsCount,
+      dataBreachActivities: dataBreachActivitiesCount,
+      dataBreachIncidents: dataBreachIncidentsCount,
       formSubmissions: formSubmissionsCount,
       generatedDocuments: generatedDocumentsCount,
       generationJobs,
