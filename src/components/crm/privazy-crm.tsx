@@ -10,7 +10,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
-import { CrmCreateDialog, CrmRecordDetail } from "./crm-records";
+import { CrmCreateDialog, CrmRecordDetail, CrmTaskCreateDialog } from "./crm-records";
 import {
   navGroups,
   routeAliases,
@@ -356,15 +356,89 @@ function DataTable({
   );
 }
 
-function GenericModuleView({ module, onRoute }: { module: GenericModule; onRoute: (route: CrmRoute, row?: TableRow) => void }) {
+function GenericModuleView({
+  module,
+  onPrimary,
+  onRoute,
+}: {
+  module: GenericModule;
+  onPrimary?: () => void;
+  onRoute: (route: CrmRoute, row?: TableRow) => void;
+}) {
   return (
     <div className="space-y-5">
-      <ModuleHeader action={module.action} icon={module.icon} subtitle={module.subtitle} title={module.title} />
+      <ModuleHeader action={onPrimary ? module.action : undefined} icon={module.icon} onPrimary={onPrimary} subtitle={module.subtitle} title={module.title} />
       <KpiGrid items={module.kpis} onRoute={onRoute} />
       <Card padding="md" variant="flat">
         <div className="space-y-4">
           <FilterBar labels={module.filters.map((filter) => filter.label)} />
           <DataTable columns={module.columns} emptyMessage={module.emptyMessage} onRoute={onRoute} rows={module.rows} />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function TaskModuleView({
+  canMutate,
+  module,
+  onCreate,
+  onRoute,
+}: {
+  canMutate: boolean;
+  module: GenericModule;
+  onCreate?: () => void;
+  onRoute: (route: CrmRoute, row?: TableRow) => void;
+}) {
+  const [savingId, setSavingId] = useState<string>();
+  const [error, setError] = useState<string>();
+
+  async function setTaskStatus(taskId: string, status: "IN_PROGRESS" | "DONE" | "CANCELLED") {
+    setSavingId(taskId);
+    setError(undefined);
+    const response = await fetch(`/api/crm/tasks/${taskId}/status`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie zmienic statusu zadania.");
+      setSavingId(undefined);
+      return;
+    }
+    window.location.reload();
+  }
+
+  return (
+    <div className="space-y-5">
+      <ModuleHeader action={onCreate ? module.action : undefined} icon={module.icon} onPrimary={onCreate} subtitle={module.subtitle} title={module.title} />
+      <KpiGrid items={module.kpis} onRoute={onRoute} />
+      {error && <p className="rounded-[var(--radius-md)] bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">{error}</p>}
+      <Card padding="md" variant="flat">
+        <div className="space-y-4">
+          <FilterBar labels={module.filters.map((filter) => filter.label)} />
+          <DataTable columns={module.columns} emptyMessage={module.emptyMessage} onRoute={onRoute} rows={module.rows} />
+          {canMutate && module.rows.length > 0 && (
+            <div className="space-y-3 border-t border-[var(--border-subtle)] pt-4">
+              <h2 className="text-sm font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">Szybka zmiana statusu</h2>
+              {module.rows.map((row) => (
+                <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3 md:flex-row md:items-center md:justify-between" key={row.id ?? row.primary}>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[var(--text-strong)]">{row.primary}</p>
+                    <p className="mt-1 truncate text-sm text-[var(--text-muted)]">{row.secondary ?? row.cells[4] ?? ""}</p>
+                  </div>
+                  {row.id && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button disabled={savingId === row.id} size="sm" type="button" variant="outline" onClick={() => void setTaskStatus(row.id!, "IN_PROGRESS")}>W toku</Button>
+                      <Button disabled={savingId === row.id} size="sm" type="button" variant="outline" onClick={() => void setTaskStatus(row.id!, "DONE")}>Zrobione</Button>
+                      <Button disabled={savingId === row.id} size="sm" type="button" variant="ghost" onClick={() => void setTaskStatus(row.id!, "CANCELLED")}>Anuluj</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Card>
     </div>
@@ -777,6 +851,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
   const [platformPreview, setPlatformPreview] = useState(false);
   const [selectedRow, setSelectedRow] = useState<TableRow | null>(null);
   const [createMode, setCreateMode] = useState<"lead" | "organization" | null>(null);
+  const [taskCreateOpen, setTaskCreateOpen] = useState(false);
 
   const setRouteAndClose = (nextRoute: CrmRoute, row?: TableRow) => {
     setRoute(nextRoute);
@@ -785,16 +860,22 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
     setAddOpen(false);
     setNotifOpen(false);
     setCmdOpen(false);
+    setTaskCreateOpen(false);
   };
 
   const handleQuickAdd = (target: CrmRoute) => {
     setAddOpen(false);
+    setCmdOpen(false);
     if (target === "leads") {
       setCreateMode("lead");
       return;
     }
     if (target === "clients") {
       setCreateMode("organization");
+      return;
+    }
+    if (target === "tasks") {
+      setTaskCreateOpen(true);
       return;
     }
     setRouteAndClose(target);
@@ -852,7 +933,18 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
     }
 
     const crmModule = data.modules[route];
-    if (crmModule) return <GenericModuleView module={crmModule} onRoute={setRouteAndClose} />;
+    if (crmModule && route === "tasks") {
+      return <TaskModuleView canMutate={canMutate} module={crmModule} onCreate={canMutate ? () => setTaskCreateOpen(true) : undefined} onRoute={setRouteAndClose} />;
+    }
+    if (crmModule) {
+      return (
+        <GenericModuleView
+          module={crmModule}
+          onPrimary={route === "orgs" && canMutate ? () => setCreateMode("organization") : undefined}
+          onRoute={setRouteAndClose}
+        />
+      );
+    }
 
     return <Dashboard data={data.dashboard} onRoute={setRouteAndClose} />;
   })();
@@ -930,9 +1022,6 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
                       ["Dodaj klienta", "clients"],
                       ["Dodaj lead", "leads"],
                       ["Utwórz zadanie", "tasks"],
-                      ["Dodaj dokument", "documents"],
-                      ["Dodaj incydent", "breaches"],
-                      ["Wyślij wiadomość", "inbox"],
                     ].map(([label, target]) => (
                       <button className="flex h-10 w-full items-center gap-3 rounded-[var(--radius-sm)] px-2 text-sm font-semibold text-[var(--text-body)] hover:bg-[var(--surface-sunken)]" key={label} type="button" onClick={() => handleQuickAdd(target as CrmRoute)}>
                         <CrmIcon className="size-4 text-[var(--brand-ink)]" name="Plus" />
@@ -981,12 +1070,17 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
             <div className="mt-3 space-y-2">
               {[
                 ["Dodaj lead", "Nowy potencjalny klient", "leads", "UserPlus"],
-                ["Dodaj naruszenie", "Rejestruj incydent - timer 72h", "breaches", "TriangleAlert"],
+                ["Utworz zadanie", "Przypisz zadanie do leada albo organizacji", "tasks", "SquareCheckBig"],
                 ["Klienci", "Wszystkie organizacje", "clients", "Building2"],
-                ["Skrzynka", "9 nieprzeczytanych", "inbox", "Inbox"],
+                ["Organizacje", "Lista organizacji z bazy", "orgs", "Network"],
                 ["Produkty / sklep", "Ceny i widoczność", "products", "Tag"],
               ].map(([label, subtitle, target, icon]) => (
-                <button className="flex w-full items-center gap-3 rounded-[var(--radius-md)] p-3 text-left hover:bg-[var(--surface-sunken)]" key={label} type="button" onClick={() => setRouteAndClose(target as CrmRoute)}>
+                <button
+                  className="flex w-full items-center gap-3 rounded-[var(--radius-md)] p-3 text-left hover:bg-[var(--surface-sunken)]"
+                  key={label}
+                  type="button"
+                  onClick={() => (target === "leads" || target === "tasks" ? handleQuickAdd(target as CrmRoute) : setRouteAndClose(target as CrmRoute))}
+                >
                   <span className="grid size-10 place-items-center rounded-[var(--radius-sm)] bg-[var(--brand-soft)] text-[var(--brand-ink)]">
                     <CrmIcon className="size-5" name={icon} />
                   </span>
@@ -1043,6 +1137,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
       )}
 
       {createMode && <CrmCreateDialog mode={createMode} onClose={() => setCreateMode(null)} />}
+      {taskCreateOpen && <CrmTaskCreateDialog onClose={() => setTaskCreateOpen(false)} />}
     </div>
   );
 }
