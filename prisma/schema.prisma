@@ -106,6 +106,28 @@ enum CrmTaskStatus {
   CANCELLED
 }
 
+enum BlogPostStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum NewsletterSubscriberStatus {
+  PENDING
+  ACTIVE
+  UNSUBSCRIBED
+  BOUNCED
+  COMPLAINED
+}
+
+enum NewsletterConsentEventType {
+  SUBSCRIBED
+  CONFIRMED
+  UNSUBSCRIBED
+  RESUBSCRIBED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -127,6 +149,8 @@ model User {
   authoredCrmNotes   CrmNote[]
   assignedCrmTasks   CrmTask[]               @relation("CrmTaskAssignedTo")
   createdCrmTasks    CrmTask[]               @relation("CrmTaskCreatedBy")
+  authoredBlogPosts   BlogPost[]              @relation("BlogPostAuthor")
+  reviewedBlogPosts   BlogPost[]              @relation("BlogPostReviewer")
 }
 
 model Organization {
@@ -399,4 +423,116 @@ model CrmTask {
   @@index([assignedToId, status, dueAt])
   @@index([createdById])
   @@index([dueAt])
+}
+
+model BlogPost {
+  id               String         @id @default(cuid())
+  slug             String         @unique
+  title            String
+  excerpt          String
+  content          String
+  status           BlogPostStatus @default(DRAFT)
+  authorId         String
+  reviewerId       String?
+  publishedAt      DateTime?
+  seoTitle         String?
+  seoDescription   String?
+  canonicalUrl     String?
+  coverImageFileId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  author     User           @relation("BlogPostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewer   User?          @relation("BlogPostReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  categories PostCategory[]
+  tags       PostTag[]
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([reviewerId])
+  @@index([createdAt])
+}
+
+model BlogCategory {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts PostCategory[]
+
+  @@index([name])
+}
+
+model BlogTag {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts PostTag[]
+
+  @@index([name])
+}
+
+model PostCategory {
+  postId     String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  post     BlogPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category BlogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([postId, categoryId])
+  @@index([categoryId])
+}
+
+model PostTag {
+  postId    String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+model NewsletterSubscriber {
+  id                  String                     @id @default(cuid())
+  email               String                     @unique
+  status              NewsletterSubscriberStatus @default(PENDING)
+  source              String
+  consentMarketing    Boolean                    @default(false)
+  consentTextSnapshot String
+  confirmedAt         DateTime?
+  unsubscribedAt      DateTime?
+  unsubscribeTokenHash String                    @unique
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  consentEvents NewsletterConsentEvent[]
+
+  @@index([status, createdAt])
+  @@index([source])
+}
+
+model NewsletterConsentEvent {
+  id                  String                     @id @default(cuid())
+  subscriberId        String
+  type                NewsletterConsentEventType
+  source              String
+  ipHash              String?
+  userAgentHash       String?
+  consentTextSnapshot String
+  createdAt           DateTime                   @default(now())
+
+  subscriber NewsletterSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId, createdAt])
+  @@index([type, createdAt])
 }

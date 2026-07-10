@@ -9,5 +9,17 @@
 | Unbounded list semantics | No reusable paging contract | Cursor, defaults and max 100 | P2-004 partial |
 | Public IOD abuse protection | No durable limiter/Turnstile enforcement on `main` | Existing route behavior retained | P1 open |
 | Remaining CRM modules | Mostly scaffold | Unchanged | Open |
+| Static/partial blog | Static `src/lib/blog.ts`, no persisted workflow | Prisma CMS models, public `PUBLISHED` blog routes, `/admin/cms` | Improved |
+| Missing newsletter consent | Mock newsletter UI, no consent event persistence | Subscriber model, consent events, required checkbox | Added |
+| Missing unsubscribe | No public unsubscribe foundation | Token-hash unsubscribe API and page | Added foundation |
+| Marketing automation | Missing | Unchanged | Out of scope |
 
-The CRM audit moves from `PARTIAL` to `IMPROVED`, not complete. Documents/generators, portal, breach/DSR, CMS, automation and production operations remain open.
+The CRM audit moves from `PARTIAL` to `IMPROVED`, not complete. CMS/newsletter moves from `MISSING/SCAFFOLD` to `FOUNDATION/PARTIAL`. Documents/generators, portal, breach/DSR, advanced automation and production operations remain open.
+
+CMS/newsletter residual risks:
+
+1. Static articles are not automatically migrated into `BlogPost`.
+2. Double opt-in email delivery is not implemented.
+3. Campaign sending is intentionally absent.
+4. Public newsletter abuse protection is limited to validation and honeypot until a reusable limiter/Turnstile path is added.
+5. Staging migration and role-matrix smokes are still required before release.
