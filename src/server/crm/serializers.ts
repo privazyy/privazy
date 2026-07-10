@@ -54,6 +54,24 @@ type TaskRecord = Prisma.CrmTaskGetPayload<{
   };
 }>;
 
+type ContactRecord = Prisma.ContactPersonGetPayload<Record<string, never>>;
+
+type TaskListRecord = Prisma.CrmTaskGetPayload<{
+  include: {
+    assignedTo: { select: { id: true; name: true; email: true } };
+    createdBy: { select: { id: true; name: true; email: true } };
+    lead: { select: { id: true; companyName: true; fullName: true } };
+    organization: { select: { id: true; name: true } };
+  };
+}>;
+
+type AuditActivityRecord = Prisma.AuditLogGetPayload<{
+  include: {
+    organization: { select: { id: true; name: true } };
+    user: { select: { id: true; name: true; email: true } };
+  };
+}>;
+
 export function serializeLeadListItem(lead: LeadListRecord) {
   return {
     id: lead.id,
@@ -188,5 +206,41 @@ export function serializeCrmTask(task: TaskRecord) {
     completedAt: task.completedAt,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
+  };
+}
+
+export function serializeContactPerson(contact: ContactRecord) {
+  return {
+    id: contact.id,
+    leadId: contact.leadId,
+    organizationId: contact.organizationId,
+    fullName: contact.fullName,
+    email: contact.email,
+    phone: contact.phone,
+    role: contact.role,
+    isPrimary: contact.isPrimary,
+    createdAt: contact.createdAt,
+    updatedAt: contact.updatedAt,
+  };
+}
+
+export function serializeCrmTaskListItem(task: TaskListRecord) {
+  return {
+    ...serializeCrmTask(task),
+    lead: task.lead,
+    organization: task.organization,
+  };
+}
+
+export function serializeAuditActivity(log: AuditActivityRecord) {
+  return {
+    id: log.id,
+    type: "audit",
+    action: log.action,
+    entityType: log.entityType,
+    entityId: log.entityId,
+    actor: log.user,
+    organization: log.organization,
+    createdAt: log.createdAt,
   };
 }
