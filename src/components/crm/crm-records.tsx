@@ -12,7 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 type Assignee = { id: string; name: string | null; email: string; role: string };
 type Note = { id: string; body: string; createdAt: string; author: { name: string | null; email: string } };
 type Contact = { id: string; fullName: string; email: string | null; phone: string | null; role: string | null };
-type Task = { id: string; title: string; status: string; dueAt: string | null };
+type Task = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority?: string;
+  dueAt: string | null;
+  assignedTo?: { name: string | null; email: string } | null;
+};
 
 type LeadDetail = {
   id: string;
@@ -255,6 +263,34 @@ export function CrmRecordDetail({
     setNotice("Notatka dodana.");
   }
 
+  async function addTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const response = await fetch(
+      kind === "lead" ? `/api/crm/leads/${id}/tasks` : `/api/crm/organizations/${id}/tasks`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: form.get("title"),
+          description: form.get("description") || null,
+          priority: form.get("priority"),
+          dueAt: form.get("dueAt") || null,
+          assignedToId: form.get("assignedToId") || null,
+        }),
+      },
+    );
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie utworzyc zadania.");
+      return;
+    }
+    event.currentTarget.reset();
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Zadanie utworzone.");
+  }
+
   async function convertLead(organizationId?: string) {
     const prompt = organizationId
       ? "Połączyć lead ze wskazaną, zweryfikowaną organizacją?"
@@ -382,7 +418,39 @@ export function CrmRecordDetail({
           {contacts.map((contact) => <p className="text-sm" key={contact.id}><strong>{contact.fullName}</strong><br />{contact.role ?? contact.email ?? contact.phone ?? "—"}</p>)}
         </RelationCard>
         <RelationCard title="Zadania" empty="Brak zadań.">
-          {tasks.map((task) => <p className="text-sm" key={task.id}><strong>{task.title}</strong><br />{task.status}{task.dueAt ? ` · ${new Date(task.dueAt).toLocaleDateString("pl-PL")}` : ""}</p>)}
+          {canMutate && (
+            <form className="space-y-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3" onSubmit={addTask}>
+              <Field label="Nowe zadanie" name="title" required />
+              <Textarea name="description" placeholder="Opis lub kontekst zadania" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <Label htmlFor="task-priority">Priorytet</Label>
+                  <select className={selectClass} defaultValue="NORMAL" id="task-priority" name="priority">
+                    <option value="LOW">Niski</option>
+                    <option value="NORMAL">Standard</option>
+                    <option value="HIGH">Wysoki</option>
+                    <option value="URGENT">Pilny</option>
+                  </select>
+                </label>
+                <Field label="Termin" name="dueAt" type="datetime-local" />
+              </div>
+              <label className="space-y-2">
+                <Label htmlFor="task-assignedToId">Przypisz do</Label>
+                <select className={selectClass} defaultValue="" id="task-assignedToId" name="assignedToId">
+                  <option value="">Nieprzypisane</option>
+                  {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.name ?? assignee.email}</option>)}
+                </select>
+              </label>
+              <Button size="sm" type="submit">Utworz zadanie</Button>
+            </form>
+          )}
+          {tasks.map((task) => (
+            <p className="text-sm" key={task.id}>
+              <strong>{task.title}</strong><br />
+              {task.status}{task.priority ? ` · ${task.priority}` : ""}{task.dueAt ? ` · ${new Date(task.dueAt).toLocaleDateString("pl-PL")}` : ""}
+              {task.assignedTo ? <><br />{task.assignedTo.name ?? task.assignedTo.email}</> : null}
+            </p>
+          ))}
         </RelationCard>
         <RelationCard title={lead ? "Źródło" : "Powiązane leady"} empty={lead ? "Lead ręczny bez formularza." : "Brak powiązanych leadów."}>
           {lead?.formSubmission && <p className="text-sm"><strong>{lead.formSubmission.formType}</strong><br />{lead.formSubmission.status} · {new Date(lead.formSubmission.createdAt).toLocaleString("pl-PL")}</p>}
