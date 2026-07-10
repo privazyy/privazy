@@ -1,6 +1,16 @@
 import "server-only";
 
-import { CrmAccessError, requireCrmRead, requireCrmWrite, type CrmActor } from "@/server/crm/access";
+import type { UserRole } from "@prisma/client";
+
+import {
+  CrmAccessError,
+  canMutateCrm as canRoleMutateCrm,
+  requireCrmRead,
+  requireCrmWrite,
+  type CrmActor,
+} from "@/server/crm/access";
+
+const CRM_READ_ROLES = new Set<UserRole>(["ADMIN", "LAWYER", "OPERATOR", "READ_ONLY"]);
 
 export async function requireCrmMutation() {
   return requireCrmWrite();
@@ -23,6 +33,30 @@ export async function requireCrmLegalOperation() {
 }
 
 export const requireCrmDocumentOperation = requireCrmLegalOperation;
+
+export { requireCrmRead };
+
+export function canReadCrm(actor: CrmActor | UserRole) {
+  const role = typeof actor === "string" ? actor : actor.role;
+  return CRM_READ_ROLES.has(role);
+}
+
+export function canMutateCrm(actor: CrmActor | UserRole) {
+  const role = typeof actor === "string" ? actor : actor.role;
+  return canRoleMutateCrm(role);
+}
+
+export function canManageLead(actor: CrmActor | UserRole) {
+  return canMutateCrm(actor);
+}
+
+export function canManageOrganization(actor: CrmActor | UserRole) {
+  return canMutateCrm(actor);
+}
+
+export function canManageTask(actor: CrmActor | UserRole) {
+  return canMutateCrm(actor);
+}
 
 export function assertReadOnlyCannotMutate(actor: CrmActor) {
   if (actor.role === "READ_ONLY") {

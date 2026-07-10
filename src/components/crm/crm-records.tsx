@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Assignee = { id: string; name: string | null; email: string; role: string };
 type Note = { id: string; body: string; createdAt: string; author: { name: string | null; email: string } };
-type Contact = { id: string; fullName: string; email: string | null; phone: string | null; role: string | null };
+type Contact = { id: string; fullName: string; email: string | null; phone: string | null; role: string | null; isPrimary?: boolean };
 type Task = {
   id: string;
   title: string;
@@ -19,7 +19,7 @@ type Task = {
   status: string;
   priority?: string;
   dueAt: string | null;
-  assignedTo?: { name: string | null; email: string } | null;
+  assignedTo?: { id?: string; name: string | null; email: string } | null;
 };
 type TaskLink = { id: string; label: string; type: "lead" | "organization" };
 
@@ -450,11 +450,14 @@ export function CrmRecordDetail({
   }
 
   async function updateTaskStatus(taskId: string, status: string) {
-    const response = await fetch(`/api/crm/tasks/${taskId}/status`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    const response =
+      status === "DONE" || status === "CANCELLED"
+        ? await fetch(`/api/crm/tasks/${taskId}/${status === "DONE" ? "complete" : "cancel"}`, { method: "POST" })
+        : await fetch(`/api/crm/tasks/${taskId}/status`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ status }),
+          });
     const payload = await response.json();
     if (!response.ok) {
       setError(payload.error ?? "Nie udalo sie zmienic statusu zadania.");
@@ -463,6 +466,71 @@ export function CrmRecordDetail({
     const refreshed = await fetch(endpoint);
     setRecord(await refreshed.json());
     setNotice("Status zadania zmieniony.");
+  }
+
+  async function assignTask(taskId: string, assignedToId: string | null) {
+    const response = await fetch(`/api/crm/tasks/${taskId}/assign`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assignedToId }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie przypisac zadania.");
+      return;
+    }
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Zadanie przypisane.");
+  }
+
+  async function updateContact(contact: Contact, input: Partial<Contact>) {
+    const response = await fetch(`/api/crm/contacts/${contact.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie zapisac kontaktu.");
+      return;
+    }
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Kontakt zaktualizowany.");
+  }
+
+  async function editContact(contact: Contact) {
+    const fullName = window.prompt("Imie i nazwisko kontaktu", contact.fullName);
+    if (fullName === null) return;
+    const email = window.prompt("E-mail kontaktu", contact.email ?? "");
+    if (email === null) return;
+    const phone = window.prompt("Telefon kontaktu", contact.phone ?? "");
+    if (phone === null) return;
+    const role = window.prompt("Rola kontaktu", contact.role ?? "");
+    if (role === null) return;
+    await updateContact(contact, {
+      email: email || undefined,
+      fullName,
+      phone: phone || undefined,
+      role: role || undefined,
+    });
+  }
+
+  async function archiveRecord() {
+    const label = kind === "lead" ? "leada" : "organizacje";
+    if (!window.confirm(`Zarchiwizowac ${label}? Operacja zostanie zapisana w audycie.`)) return;
+    const response = await fetch(kind === "lead" ? `/api/crm/leads/${id}/archive` : `/api/crm/organizations/${id}/archive`, {
+      method: "POST",
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie zarchiwizowac rekordu.");
+      return;
+    }
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Rekord zarchiwizowany.");
   }
 
   async function convertLead(organizationId?: string) {
@@ -560,6 +628,14 @@ export function CrmRecordDetail({
                   void patch(lead ? { status, priority, assignedToId: ownerId } : { status, ownerId });
                 }}>Zapisz prowadzenie</Button>
                 {lead && !lead.organization && <Button type="button" variant="outline" onClick={() => void convertLead()}>Przekonwertuj do organizacji</Button>}
+                <Button
+                  disabled={(lead?.status ?? organization?.status) === "ARCHIVED"}
+                  type="button"
+                  variant="ghost"
+                  onClick={() => void archiveRecord()}
+                >
+                  Archiwizuj
+                </Button>
               </div>
             </div>
           ) : (
@@ -601,7 +677,24 @@ export function CrmRecordDetail({
               <Button size="sm" type="submit">Dodaj kontakt</Button>
             </form>
           )}
-          {contacts.map((contact) => <p className="text-sm" key={contact.id}><strong>{contact.fullName}</strong><br />{contact.role ?? contact.email ?? contact.phone ?? "—"}</p>)}
+          {contacts.map((contact) => (
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3 text-sm" key={contact.id}>
+              <p>
+                <strong>{contact.fullName}</strong>{contact.isPrimary ? " - kontakt glowny" : ""}<br />
+                {[contact.role, contact.email, contact.phone].filter(Boolean).join(" - ") || "-"}
+              </p>
+              {canMutate && (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" type="button" variant="outline" onClick={() => void editContact(contact)}>Edytuj</Button>
+                  {!contact.isPrimary && (
+                    <Button size="sm" type="button" variant="ghost" onClick={() => void updateContact(contact, { isPrimary: true })}>
+                      Ustaw glowny
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </RelationCard>
         <RelationCard title="Zadania" empty="Brak zadań.">
           {canMutate && (
@@ -638,10 +731,29 @@ export function CrmRecordDetail({
                 {task.assignedTo ? <><br />{task.assignedTo.name ?? task.assignedTo.email}</> : null}
               </p>
               {canMutate && (
-                <div className="flex flex-wrap gap-2">
-                  <Button disabled={task.status === "IN_PROGRESS"} size="sm" type="button" variant="outline" onClick={() => void updateTaskStatus(task.id, "IN_PROGRESS")}>W toku</Button>
-                  <Button disabled={task.status === "DONE"} size="sm" type="button" variant="outline" onClick={() => void updateTaskStatus(task.id, "DONE")}>Zrobione</Button>
-                  <Button disabled={task.status === "CANCELLED"} size="sm" type="button" variant="ghost" onClick={() => void updateTaskStatus(task.id, "CANCELLED")}>Anuluj</Button>
+                <div className="space-y-2">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <select className={selectClass} defaultValue={task.assignedTo?.id ?? ""} id={`task-assignee-${task.id}`}>
+                      <option value="">Nieprzypisane</option>
+                      {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.name ?? assignee.email}</option>)}
+                    </select>
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const select = document.getElementById(`task-assignee-${task.id}`) as HTMLSelectElement;
+                        void assignTask(task.id, select.value || null);
+                      }}
+                    >
+                      Przypisz
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button disabled={task.status === "IN_PROGRESS"} size="sm" type="button" variant="outline" onClick={() => void updateTaskStatus(task.id, "IN_PROGRESS")}>W toku</Button>
+                    <Button disabled={task.status === "DONE"} size="sm" type="button" variant="outline" onClick={() => void updateTaskStatus(task.id, "DONE")}>Zrobione</Button>
+                    <Button disabled={task.status === "CANCELLED"} size="sm" type="button" variant="ghost" onClick={() => void updateTaskStatus(task.id, "CANCELLED")}>Anuluj</Button>
+                  </div>
                 </div>
               )}
             </div>

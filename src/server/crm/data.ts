@@ -362,6 +362,10 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const failedJobs = jobs.filter((job) => job.status === "FAILED").length;
   const activeTemplates = templates.filter((template) => template.status === "ACTIVE").length;
   const hotLeads = leads.filter((lead) => ["HIGH", "URGENT"].includes(lead.priority)).length;
+  const newLeads = leads.filter((lead) => lead.status === "NEW").length;
+  const unassignedLeads = leads.filter((lead) => !lead.assignedToId && lead.status !== "ARCHIVED" && lead.status !== "CONVERTED").length;
+  const qualifiedLeads = leads.filter((lead) => lead.status === "QUALIFIED").length;
+  const activeClients = organizations.filter((organization) => organization.status === "ACTIVE").length;
   const pipelineValue = leads.reduce((sum, lead) => sum + Number(lead.estimatedValue ?? 0), 0);
   const now = new Date();
   const startOfTomorrow = new Date(now);
@@ -725,6 +729,26 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       tone: "danger",
     });
   }
+  if (unassignedLeads > 0) {
+    alerts.push({
+      icon: "UserRoundSearch",
+      route: "leads",
+      subtitle: `${unassignedLeads} leadow nie ma jeszcze opiekuna.`,
+      tag: "Bez opiekuna",
+      title: "Leady wymagaja przypisania",
+      tone: "warning",
+    });
+  }
+  if (overdueTasks > 0) {
+    alerts.push({
+      icon: "TriangleAlert",
+      route: "tasks",
+      subtitle: `${overdueTasks} zadan operacyjnych jest po terminie.`,
+      tag: "Zalegle",
+      title: "Zalegle zadania CRM",
+      tone: "danger",
+    });
+  }
 
   const activity: CrmActivityItem[] = [
     ...auditLogs.slice(0, 4).map((log) => ({
@@ -755,16 +779,14 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         ["Dokumenty", String(counts.generatedDocuments), percentWidth(counts.generatedDocuments, counts.generationJobs || counts.generatedDocuments)],
       ],
       kpis: [
-        { icon: "UserPlus", label: "Leady IOD", value: String(leads.length), delta: hotLeads > 0 ? `${hotLeads} gorące` : undefined, tone: hotLeads > 0 ? "danger" : "brand", route: "leads" },
-        { icon: "Building2", label: "Organizacje", value: String(counts.organizations), tone: "brand", route: "clients" },
-        { icon: "FileText", label: "Dokumenty", value: String(counts.generatedDocuments), tone: "success", route: "documents" },
-        { icon: "Clock3", label: "Joby aktywne", value: String(activeJobs), tone: activeJobs > 0 ? "warning" : "neutral", route: "orders" },
-        { icon: "TriangleAlert", label: "Joby z błędem", value: String(failedJobs), tone: failedJobs > 0 ? "danger" : "neutral", route: "documents" },
-        { icon: "Tag", label: "Szablony", value: String(counts.templates), tone: "brand", route: "products" },
-        { icon: "Users", label: "Użytkownicy", value: String(counts.users), tone: "neutral", route: "employees" },
-        { icon: "Activity", label: "Logi audytu", value: String(counts.auditLogs), tone: "neutral", route: "admin" },
-        { icon: "Wallet", label: "Pipeline leadów", value: formatCompactCurrency(pipelineValue), tone: pipelineValue > 0 ? "success" : "neutral", route: "sales" },
-        { icon: "FileInput", label: "Formularze", value: String(counts.formSubmissions), tone: "brand", route: "traffic" },
+        { icon: "UserPlus", label: "Nowe leady", value: String(newLeads), delta: hotLeads > 0 ? `${hotLeads} gorace` : undefined, tone: hotLeads > 0 ? "danger" : "brand", route: "leads" },
+        { icon: "UserRoundSearch", label: "Leady bez opiekuna", value: String(unassignedLeads), tone: unassignedLeads > 0 ? "warning" : "neutral", route: "leads" },
+        { icon: "BadgeCheck", label: "Leady zakwalifikowane", value: String(qualifiedLeads), tone: qualifiedLeads > 0 ? "success" : "neutral", route: "sales" },
+        { icon: "Building2", label: "Aktywni klienci", value: String(activeClients), tone: activeClients > 0 ? "success" : "neutral", route: "clients" },
+        { icon: "SquareCheckBig", label: "Zadania otwarte", value: String(openTasks), tone: openTasks > 0 ? "warning" : "neutral", route: "tasks" },
+        { icon: "CalendarDays", label: "Zadania na dzis", value: String(todayTasks), tone: todayTasks > 0 ? "brand" : "neutral", route: "tasks" },
+        { icon: "TriangleAlert", label: "Zadania zalegle", value: String(overdueTasks), tone: overdueTasks > 0 ? "danger" : "neutral", route: "tasks" },
+        { icon: "Activity", label: "Ostatnie aktywnosci", value: String(counts.auditLogs), tone: "neutral", route: "admin" },
       ],
       revenueBars: [
         ["Leady", percentWidth(leads.length, counts.formSubmissions || leads.length)],

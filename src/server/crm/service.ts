@@ -10,8 +10,14 @@ import {
 import type { z } from "zod";
 
 import { assertCrmWriteActor, type CrmActor } from "@/server/crm/access";
+import { createCrmActivity } from "@/server/crm/activity";
+import { CrmServiceError } from "@/server/crm/errors";
+import { paginatedResult } from "@/server/crm/pagination";
 import type {
+  contactListQuerySchema,
   contactCreateSchema,
+  contactUpdateSchema,
+  crmTaskAssignSchema,
   crmActivityListQuerySchema,
   crmNoteCreateSchema,
   crmTaskCreateSchema,
@@ -77,23 +83,14 @@ type OrganizationUpdateInput = {
 type OrganizationListInput = z.infer<typeof organizationListQuerySchema>;
 type CrmNoteCreateInput = z.infer<typeof crmNoteCreateSchema>;
 type ContactCreateInput = z.infer<typeof contactCreateSchema>;
+type ContactUpdateInput = z.infer<typeof contactUpdateSchema>;
+type ContactListInput = z.infer<typeof contactListQuerySchema>;
 type CrmTaskCreateInput = z.infer<typeof crmTaskCreateSchema>;
 type CrmTaskUpdateInput = z.infer<typeof crmTaskUpdateSchema>;
 type CrmTaskStatusChangeInput = z.infer<typeof crmTaskStatusChangeSchema>;
+type CrmTaskAssignInput = z.infer<typeof crmTaskAssignSchema>;
 type CrmTaskListInput = z.infer<typeof crmTaskListQuerySchema>;
 type CrmActivityListInput = z.infer<typeof crmActivityListQuerySchema>;
-
-export class CrmServiceError extends Error {
-  constructor(
-    public readonly status: 400 | 404 | 409,
-    public readonly code: string,
-    message: string,
-    public readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = "CrmServiceError";
-  }
-}
 
 const leadSummaryInclude = {
   assignedTo: { select: { id: true, name: true, email: true } },
@@ -155,6 +152,7 @@ export async function listLeads(input: LeadListInput) {
   const prisma = getPrisma();
   const where: Prisma.LeadWhereInput = {
     ...(input.status ? { status: input.status } : {}),
+    ...(input.priority ? { priority: input.priority } : {}),
     ...(input.source ? { source: input.source } : {}),
     ...(input.assignedToId ? { assignedToId: input.assignedToId } : {}),
     ...(input.q
@@ -171,17 +169,11 @@ export async function listLeads(input: LeadListInput) {
   const rows = await prisma.lead.findMany({
     where,
     include: leadSummaryInclude,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: leadOrderBy(input.sort),
     take: input.limit + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
-  const hasMore = rows.length > input.limit;
-  const items = hasMore ? rows.slice(0, input.limit) : rows;
-
-  return {
-    items: items.map(serializeLeadListItem),
-    nextCursor: hasMore ? items.at(-1)?.id ?? null : null,
-  };
+  return paginatedResult(rows, input.limit, serializeLeadListItem);
 }
 
 export async function getLead(id: string) {
@@ -247,6 +239,28 @@ export async function updateLead(id: string, input: LeadUpdateInput, actor: CrmA
     });
     return updated;
   });
+  return serializeLeadListItem(lead);
+}
+
+export async function archiveLead(id: string, actor: CrmActor) {
+  assertCrmWriteActor(actor);
+  const prisma = getPrisma();
+  const existing = await prisma.lead.findUnique({ where: { id }, select: { id: true, status: true } });
+  if (!existing) throw new CrmServiceError(404, "NOT_FOUND", "Nie znaleziono leada.");
+
+  const lead = await prisma.$transaction(async (tx) => {
+    const archived = await tx.lead.update({
+      where: { id },
+      data: { status: "ARCHIVED" },
+      include: leadSummaryInclude,
+    });
+    await writeAudit(tx, actor, "crm.lead.archived", "Lead", id, {
+      beforeStatus: existing.status,
+      afterStatus: "ARCHIVED",
+    });
+    return archived;
+  });
+
   return serializeLeadListItem(lead);
 }
 
@@ -354,17 +368,11 @@ export async function listOrganizations(input: OrganizationListInput) {
         : {}),
     },
     include: organizationSummaryInclude,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: organizationOrderBy(input.sort),
     take: input.limit + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
-  const hasMore = rows.length > input.limit;
-  const items = hasMore ? rows.slice(0, input.limit) : rows;
-
-  return {
-    items: items.map(serializeOrganizationListItem),
-    nextCursor: hasMore ? items.at(-1)?.id ?? null : null,
-  };
+  return paginatedResult(rows, input.limit, serializeOrganizationListItem);
 }
 
 export async function getOrganization(id: string) {
@@ -414,6 +422,28 @@ export async function updateOrganization(id: string, input: OrganizationUpdateIn
     }, id);
     return updated;
   });
+  return serializeOrganizationListItem(organization);
+}
+
+export async function archiveOrganization(id: string, actor: CrmActor) {
+  assertCrmWriteActor(actor);
+  const prisma = getPrisma();
+  const existing = await prisma.organization.findUnique({ where: { id }, select: { id: true, status: true } });
+  if (!existing) throw new CrmServiceError(404, "NOT_FOUND", "Nie znaleziono organizacji.");
+
+  const organization = await prisma.$transaction(async (tx) => {
+    const archived = await tx.organization.update({
+      where: { id },
+      data: { status: "ARCHIVED" },
+      include: organizationSummaryInclude,
+    });
+    await writeAudit(tx, actor, "crm.organization.archived", "Organization", id, {
+      beforeStatus: existing.status,
+      afterStatus: "ARCHIVED",
+    }, id);
+    return archived;
+  });
+
   return serializeOrganizationListItem(organization);
 }
 
@@ -476,13 +506,7 @@ export async function listCrmTasks(input: CrmTaskListInput) {
     take: input.limit + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
-  const hasMore = rows.length > input.limit;
-  const items = hasMore ? rows.slice(0, input.limit) : rows;
-
-  return {
-    items: items.map(serializeCrmTaskListItem),
-    nextCursor: hasMore ? items.at(-1)?.id ?? null : null,
-  };
+  return paginatedResult(rows, input.limit, serializeCrmTaskListItem);
 }
 
 export async function getCrmTask(id: string) {
@@ -529,7 +553,10 @@ export async function createCrmTask(input: CrmTaskCreateInput, actor: CrmActor) 
 export async function updateCrmTask(id: string, input: CrmTaskUpdateInput, actor: CrmActor) {
   assertCrmWriteActor(actor);
   const prisma = getPrisma();
-  const existing = await prisma.crmTask.findUnique({ where: { id }, select: { id: true, status: true, organizationId: true } });
+  const existing = await prisma.crmTask.findUnique({
+    where: { id },
+    select: { id: true, status: true, organizationId: true, assignedToId: true },
+  });
   if (!existing) throw new CrmServiceError(404, "NOT_FOUND", "Nie znaleziono zadania CRM.");
   await assertAssignableUser(input.assignedToId ?? undefined);
 
@@ -542,10 +569,11 @@ export async function updateCrmTask(id: string, input: CrmTaskUpdateInput, actor
       },
       include: taskInclude,
     });
-    await writeAudit(tx, actor, input.status && input.status !== existing.status ? "crm.task.status_changed" : "crm.task.updated", "CrmTask", id, {
+    await writeAudit(tx, actor, taskAuditAction(input, existing), "CrmTask", id, {
       changedFields: Object.keys(input),
       beforeStatus: existing.status,
       afterStatus: input.status,
+      ...("assignedToId" in input ? { beforeAssignedToId: existing.assignedToId, afterAssignedToId: input.assignedToId } : {}),
     }, updated.organizationId ?? existing.organizationId ?? undefined);
     return updated;
   });
@@ -555,6 +583,18 @@ export async function updateCrmTask(id: string, input: CrmTaskUpdateInput, actor
 
 export function updateCrmTaskStatus(id: string, input: CrmTaskStatusChangeInput, actor: CrmActor) {
   return updateCrmTask(id, input, actor);
+}
+
+export function assignCrmTask(id: string, input: CrmTaskAssignInput, actor: CrmActor) {
+  return updateCrmTask(id, input, actor);
+}
+
+export function completeCrmTask(id: string, actor: CrmActor) {
+  return updateCrmTask(id, { status: "DONE" }, actor);
+}
+
+export function cancelCrmTask(id: string, actor: CrmActor) {
+  return updateCrmTask(id, { status: "CANCELLED" }, actor);
 }
 
 export async function addContactPerson(input: ContactCreateInput, actor: CrmActor) {
@@ -590,6 +630,56 @@ export async function addContactPerson(input: ContactCreateInput, actor: CrmActo
   return serializeContactPerson(contact);
 }
 
+export async function listContactPersons(organizationId: string, input: ContactListInput) {
+  const organization = await getPrisma().organization.findUnique({ where: { id: organizationId }, select: { id: true } });
+  if (!organization) throw new CrmServiceError(404, "ORGANIZATION_NOT_FOUND", "Nie znaleziono organizacji.");
+
+  const rows = await getPrisma().contactPerson.findMany({
+    where: { organizationId },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }, { id: "asc" }],
+    take: input.limit + 1,
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+  });
+
+  return paginatedResult(rows, input.limit, serializeContactPerson);
+}
+
+export async function updateContactPerson(id: string, input: ContactUpdateInput, actor: CrmActor) {
+  assertCrmWriteActor(actor);
+  const prisma = getPrisma();
+  const existing = await prisma.contactPerson.findUnique({
+    where: { id },
+    select: { id: true, leadId: true, organizationId: true },
+  });
+  if (!existing) throw new CrmServiceError(404, "NOT_FOUND", "Nie znaleziono kontaktu.");
+
+  const contact = await prisma.$transaction(async (tx) => {
+    if (input.isPrimary && existing.organizationId) {
+      await tx.contactPerson.updateMany({
+        where: { organizationId: existing.organizationId, isPrimary: true, NOT: { id } },
+        data: { isPrimary: false },
+      });
+    }
+    if (input.isPrimary && existing.leadId) {
+      await tx.contactPerson.updateMany({
+        where: { leadId: existing.leadId, isPrimary: true, NOT: { id } },
+        data: { isPrimary: false },
+      });
+    }
+
+    const updated = await tx.contactPerson.update({ where: { id }, data: input });
+    await writeAudit(tx, actor, "crm.contact.updated", "ContactPerson", id, {
+      changedFields: Object.keys(input),
+      leadId: existing.leadId,
+      organizationId: existing.organizationId,
+      isPrimary: updated.isPrimary,
+    }, existing.organizationId ?? undefined);
+    return updated;
+  });
+
+  return serializeContactPerson(contact);
+}
+
 export async function listCrmActivity(input: CrmActivityListInput) {
   const where: Prisma.AuditLogWhereInput = {
     ...(input.organizationId ? { organizationId: input.organizationId } : {}),
@@ -602,13 +692,7 @@ export async function listCrmActivity(input: CrmActivityListInput) {
     take: input.limit + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
-  const hasMore = rows.length > input.limit;
-  const items = hasMore ? rows.slice(0, input.limit) : rows;
-
-  return {
-    items: items.map(serializeAuditActivity),
-    nextCursor: hasMore ? items.at(-1)?.id ?? null : null,
-  };
+  return paginatedResult(rows, input.limit, serializeAuditActivity);
 }
 
 export async function listCrmAssignees() {
@@ -658,6 +742,29 @@ async function assertOrganizationConflict(name: string, nip?: string) {
   }
 }
 
+function leadOrderBy(sort: LeadListInput["sort"]): Prisma.LeadOrderByWithRelationInput[] {
+  if (sort === "updated") return [{ updatedAt: "desc" }, { id: "desc" }];
+  if (sort === "priority") return [{ priority: "desc" }, { updatedAt: "desc" }, { id: "desc" }];
+  return [{ createdAt: "desc" }, { id: "desc" }];
+}
+
+function organizationOrderBy(sort: OrganizationListInput["sort"]): Prisma.OrganizationOrderByWithRelationInput[] {
+  if (sort === "name") return [{ name: "asc" }, { id: "asc" }];
+  if (sort === "newest") return [{ createdAt: "desc" }, { id: "desc" }];
+  return [{ updatedAt: "desc" }, { id: "desc" }];
+}
+
+function taskAuditAction(
+  input: CrmTaskUpdateInput,
+  existing: { assignedToId: string | null; status: string },
+) {
+  if (input.status === "DONE" && existing.status !== "DONE") return "crm.task.completed";
+  if (input.status === "CANCELLED" && existing.status !== "CANCELLED") return "crm.task.cancelled";
+  if (input.status && input.status !== existing.status) return "crm.task.status_changed";
+  if ("assignedToId" in input && input.assignedToId !== existing.assignedToId) return "crm.task.assigned";
+  return "crm.task.updated";
+}
+
 async function writeAudit(
   tx: Prisma.TransactionClient,
   actor: CrmActor,
@@ -667,15 +774,13 @@ async function writeAudit(
   metadata: Record<string, unknown>,
   organizationId?: string,
 ) {
-  await tx.auditLog.create({
-    data: {
-      userId: actor.id,
-      organizationId,
-      action,
-      entityType,
-      entityId,
-      metadata: toJson(metadata),
-    },
+  await createCrmActivity(tx, {
+    action,
+    actor,
+    entityId,
+    entityType,
+    metadata,
+    organizationId,
   });
 }
 

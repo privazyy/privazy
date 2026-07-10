@@ -120,8 +120,10 @@ export const leadListQuerySchema = z
   .object({
     q: z.string().trim().max(160).optional(),
     status: z.enum(["NEW", "TO_CONTACT", "CONTACTED", "QUALIFIED", "UNQUALIFIED", "PROPOSAL_SENT", "CONVERTED", "WON", "LOST", "ARCHIVED"]).optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
     source: z.enum(["IOD_CHECKER", "CONTACT_FORM", "MANUAL", "WEBSITE", "REFERRAL", "OTHER"]).optional(),
     assignedToId: z.string().trim().max(64).optional(),
+    sort: z.enum(["newest", "updated", "priority"]).default("newest"),
     cursor: z.string().trim().max(64).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
@@ -133,6 +135,7 @@ export const organizationListQuerySchema = z
     status: z.enum(["PROSPECT", "ACTIVE", "INACTIVE", "ARCHIVED"]).optional(),
     industry: z.string().trim().max(120).optional(),
     ownerId: z.string().trim().max(64).optional(),
+    sort: z.enum(["newest", "updated", "name"]).default("updated"),
     cursor: z.string().trim().max(64).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
@@ -156,6 +159,19 @@ export const contactCreateSchema = contactCreateBaseSchema.refine(
 );
 
 export const contactBodySchema = contactCreateBaseSchema.omit({ leadId: true, organizationId: true });
+
+export const contactUpdateSchema = contactCreateBaseSchema
+  .omit({ leadId: true, organizationId: true })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "Podaj co najmniej jedno pole.");
+
+export const contactListQuerySchema = z
+  .object({
+    cursor: z.string().trim().max(64).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
 
 const crmTaskCreateBaseSchema = z
   .object({
@@ -189,6 +205,12 @@ export const crmTaskStatusChangeSchema = z
   })
   .strict();
 
+export const crmTaskAssignSchema = z
+  .object({
+    assignedToId: z.string().trim().max(64).nullable(),
+  })
+  .strict();
+
 export const crmTaskListQuerySchema = z
   .object({
     q: z.string().trim().max(160).optional(),
@@ -211,3 +233,5 @@ export const crmActivityListQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
   .strict();
+
+export const emptyCrmActionSchema = z.object({}).strict();
