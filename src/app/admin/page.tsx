@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -19,7 +20,7 @@ export default async function AdminPage() {
   const role = session?.user?.role;
 
   if (!session?.user?.id || !role) {
-    redirect("/");
+    redirect("/login?callbackUrl=/admin" as Route);
   }
 
   if (role === "CLIENT") {

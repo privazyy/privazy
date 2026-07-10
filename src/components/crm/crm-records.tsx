@@ -11,8 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Assignee = { id: string; name: string | null; email: string; role: string };
 type Note = { id: string; body: string; createdAt: string; author: { name: string | null; email: string } };
-type Contact = { id: string; fullName: string; email: string | null; phone: string | null; role: string | null };
-type Task = { id: string; title: string; status: string; dueAt: string | null };
+type Contact = { id: string; fullName: string; email: string | null; phone: string | null; role: string | null; isPrimary?: boolean };
+type Task = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority?: string;
+  dueAt: string | null;
+  assignedTo?: { id?: string; name: string | null; email: string } | null;
+};
+type TaskLink = { id: string; label: string; type: "lead" | "organization" };
 
 type LeadDetail = {
   id: string;
@@ -179,6 +188,135 @@ export function CrmCreateDialog({
   );
 }
 
+export function CrmTaskCreateDialog({ onClose }: { onClose: () => void }) {
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
+  const [links, setLinks] = useState<TaskLink[]>([]);
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch("/api/crm/leads?limit=100"),
+      fetch("/api/crm/organizations?limit=100"),
+      fetch("/api/crm/users"),
+    ])
+      .then(async ([leadsResponse, organizationsResponse, usersResponse]) => {
+        const leadsPayload = await leadsResponse.json();
+        const organizationsPayload = await organizationsResponse.json();
+        const usersPayload = await usersResponse.json();
+        if (!leadsResponse.ok) throw new Error(leadsPayload.error ?? "Nie udalo sie pobrac leadow.");
+        if (!organizationsResponse.ok) throw new Error(organizationsPayload.error ?? "Nie udalo sie pobrac organizacji.");
+        if (active) {
+          const leadLinks: TaskLink[] = (leadsPayload.items ?? []).map((lead: { id: string; companyName: string; fullName: string }) => ({
+            id: lead.id,
+            label: `${lead.companyName} - ${lead.fullName}`,
+            type: "lead",
+          }));
+          const organizationLinks: TaskLink[] = (organizationsPayload.items ?? []).map((organization: { id: string; name: string }) => ({
+            id: organization.id,
+            label: organization.name,
+            type: "organization",
+          }));
+          setLinks([...leadLinks, ...organizationLinks]);
+          setAssignees(usersResponse.ok ? usersPayload.items : []);
+        }
+      })
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(undefined);
+    const form = new FormData(event.currentTarget);
+    const [type, id] = String(form.get("resource") ?? "").split(":");
+
+    if (!id || (type !== "lead" && type !== "organization")) {
+      setError("Wybierz leada albo organizacje dla zadania.");
+      setSaving(false);
+      return;
+    }
+
+    const response = await fetch("/api/crm/tasks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: form.get("title"),
+        description: form.get("description") || null,
+        priority: form.get("priority"),
+        dueAt: form.get("dueAt") || null,
+        assignedToId: form.get("assignedToId") || null,
+        ...(type === "lead" ? { leadId: id } : { organizationId: id }),
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie utworzyc zadania.");
+      setSaving(false);
+      return;
+    }
+    window.location.reload();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--gray-900)]/45 p-4" onClick={onClose}>
+      <Card aria-labelledby="crm-task-create-title" aria-modal="true" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto" padding="md" role="dialog" variant="raised" onClick={(event) => event.stopPropagation()}>
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--text-strong)]" id="crm-task-create-title">Nowe zadanie</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Zadanie zostanie zapisane w CRM i powiazane z leadem albo organizacja.</p>
+          </div>
+          <Button type="button" variant="ghost" onClick={onClose}>Zamknij</Button>
+        </div>
+        <form className="grid gap-4" onSubmit={submit}>
+          <Field label="Tytul" name="title" required />
+          <label className="space-y-2">
+            <Label htmlFor="resource">Powiazanie</Label>
+            <select className={selectClass} id="resource" name="resource" required>
+              <option value="">Wybierz lead albo organizacje</option>
+              <optgroup label="Leady">
+                {links.filter((link) => link.type === "lead").map((link) => <option key={`lead-${link.id}`} value={`lead:${link.id}`}>{link.label}</option>)}
+              </optgroup>
+              <optgroup label="Organizacje">
+                {links.filter((link) => link.type === "organization").map((link) => <option key={`organization-${link.id}`} value={`organization:${link.id}`}>{link.label}</option>)}
+              </optgroup>
+            </select>
+          </label>
+          <Textarea name="description" placeholder="Opis lub kontekst zadania" />
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="space-y-2">
+              <Label htmlFor="task-priority-global">Priorytet</Label>
+              <select className={selectClass} defaultValue="NORMAL" id="task-priority-global" name="priority">
+                <option value="LOW">Niski</option>
+                <option value="NORMAL">Standard</option>
+                <option value="HIGH">Wysoki</option>
+                <option value="URGENT">Pilny</option>
+              </select>
+            </label>
+            <Field label="Termin" name="dueAt" type="datetime-local" />
+            <label className="space-y-2">
+              <Label htmlFor="assignedToId">Przypisz do</Label>
+              <select className={selectClass} defaultValue="" id="assignedToId" name="assignedToId">
+                <option value="">Nieprzypisane</option>
+                {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.name ?? assignee.email}</option>)}
+              </select>
+            </label>
+          </div>
+          {error && <p className="rounded-[var(--radius-md)] bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">{error}</p>}
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="outline" onClick={onClose}>Anuluj</Button>
+            <Button disabled={saving || links.length === 0} type="submit">{saving ? "Zapisywanie..." : "Utworz zadanie"}</Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
 export function CrmRecordDetail({
   canMutate,
   id,
@@ -253,6 +391,146 @@ export function CrmRecordDetail({
     const refreshed = await fetch(endpoint);
     setRecord(await refreshed.json());
     setNotice("Notatka dodana.");
+  }
+
+  async function addTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const response = await fetch(
+      kind === "lead" ? `/api/crm/leads/${id}/tasks` : `/api/crm/organizations/${id}/tasks`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: form.get("title"),
+          description: form.get("description") || null,
+          priority: form.get("priority"),
+          dueAt: form.get("dueAt") || null,
+          assignedToId: form.get("assignedToId") || null,
+        }),
+      },
+    );
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie utworzyc zadania.");
+      return;
+    }
+    event.currentTarget.reset();
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Zadanie utworzone.");
+  }
+
+  async function addContact(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const response = await fetch(
+      kind === "lead" ? `/api/crm/leads/${id}/contacts` : `/api/crm/organizations/${id}/contacts`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.get("fullName"),
+          email: form.get("email") || undefined,
+          phone: form.get("phone") || undefined,
+          role: form.get("role") || undefined,
+          isPrimary: form.get("isPrimary") === "on",
+        }),
+      },
+    );
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie dodac kontaktu.");
+      return;
+    }
+    event.currentTarget.reset();
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Kontakt dodany.");
+  }
+
+  async function updateTaskStatus(taskId: string, status: string) {
+    const response =
+      status === "DONE" || status === "CANCELLED"
+        ? await fetch(`/api/crm/tasks/${taskId}/${status === "DONE" ? "complete" : "cancel"}`, { method: "POST" })
+        : await fetch(`/api/crm/tasks/${taskId}/status`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ status }),
+          });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie zmienic statusu zadania.");
+      return;
+    }
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Status zadania zmieniony.");
+  }
+
+  async function assignTask(taskId: string, assignedToId: string | null) {
+    const response = await fetch(`/api/crm/tasks/${taskId}/assign`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assignedToId }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie przypisac zadania.");
+      return;
+    }
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Zadanie przypisane.");
+  }
+
+  async function updateContact(contact: Contact, input: Partial<Contact>) {
+    const response = await fetch(`/api/crm/contacts/${contact.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie zapisac kontaktu.");
+      return;
+    }
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Kontakt zaktualizowany.");
+  }
+
+  async function editContact(contact: Contact) {
+    const fullName = window.prompt("Imie i nazwisko kontaktu", contact.fullName);
+    if (fullName === null) return;
+    const email = window.prompt("E-mail kontaktu", contact.email ?? "");
+    if (email === null) return;
+    const phone = window.prompt("Telefon kontaktu", contact.phone ?? "");
+    if (phone === null) return;
+    const role = window.prompt("Rola kontaktu", contact.role ?? "");
+    if (role === null) return;
+    await updateContact(contact, {
+      email: email || undefined,
+      fullName,
+      phone: phone || undefined,
+      role: role || undefined,
+    });
+  }
+
+  async function archiveRecord() {
+    const label = kind === "lead" ? "leada" : "organizacje";
+    if (!window.confirm(`Zarchiwizowac ${label}? Operacja zostanie zapisana w audycie.`)) return;
+    const response = await fetch(kind === "lead" ? `/api/crm/leads/${id}/archive` : `/api/crm/organizations/${id}/archive`, {
+      method: "POST",
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie zarchiwizowac rekordu.");
+      return;
+    }
+    const refreshed = await fetch(endpoint);
+    setRecord(await refreshed.json());
+    setNotice("Rekord zarchiwizowany.");
   }
 
   async function convertLead(organizationId?: string) {
@@ -350,6 +628,14 @@ export function CrmRecordDetail({
                   void patch(lead ? { status, priority, assignedToId: ownerId } : { status, ownerId });
                 }}>Zapisz prowadzenie</Button>
                 {lead && !lead.organization && <Button type="button" variant="outline" onClick={() => void convertLead()}>Przekonwertuj do organizacji</Button>}
+                <Button
+                  disabled={(lead?.status ?? organization?.status) === "ARCHIVED"}
+                  type="button"
+                  variant="ghost"
+                  onClick={() => void archiveRecord()}
+                >
+                  Archiwizuj
+                </Button>
               </div>
             </div>
           ) : (
@@ -379,10 +665,99 @@ export function CrmRecordDetail({
 
       <div className="grid gap-5 lg:grid-cols-3">
         <RelationCard title="Kontakty" empty="Brak osób kontaktowych.">
-          {contacts.map((contact) => <p className="text-sm" key={contact.id}><strong>{contact.fullName}</strong><br />{contact.role ?? contact.email ?? contact.phone ?? "—"}</p>)}
+          {canMutate && (
+            <form className="space-y-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3" onSubmit={addContact}>
+              <Field label="Osoba kontaktowa" name="fullName" required />
+              <Field label="E-mail" name="email" type="email" />
+              <Field label="Telefon" name="phone" />
+              <Field label="Rola" name="role" />
+              <label className="flex items-center gap-2 text-sm">
+                <input name="isPrimary" type="checkbox" /> Kontakt glowny
+              </label>
+              <Button size="sm" type="submit">Dodaj kontakt</Button>
+            </form>
+          )}
+          {contacts.map((contact) => (
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3 text-sm" key={contact.id}>
+              <p>
+                <strong>{contact.fullName}</strong>{contact.isPrimary ? " - kontakt glowny" : ""}<br />
+                {[contact.role, contact.email, contact.phone].filter(Boolean).join(" - ") || "-"}
+              </p>
+              {canMutate && (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" type="button" variant="outline" onClick={() => void editContact(contact)}>Edytuj</Button>
+                  {!contact.isPrimary && (
+                    <Button size="sm" type="button" variant="ghost" onClick={() => void updateContact(contact, { isPrimary: true })}>
+                      Ustaw glowny
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </RelationCard>
         <RelationCard title="Zadania" empty="Brak zadań.">
-          {tasks.map((task) => <p className="text-sm" key={task.id}><strong>{task.title}</strong><br />{task.status}{task.dueAt ? ` · ${new Date(task.dueAt).toLocaleDateString("pl-PL")}` : ""}</p>)}
+          {canMutate && (
+            <form className="space-y-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3" onSubmit={addTask}>
+              <Field label="Nowe zadanie" name="title" required />
+              <Textarea name="description" placeholder="Opis lub kontekst zadania" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <Label htmlFor="task-priority">Priorytet</Label>
+                  <select className={selectClass} defaultValue="NORMAL" id="task-priority" name="priority">
+                    <option value="LOW">Niski</option>
+                    <option value="NORMAL">Standard</option>
+                    <option value="HIGH">Wysoki</option>
+                    <option value="URGENT">Pilny</option>
+                  </select>
+                </label>
+                <Field label="Termin" name="dueAt" type="datetime-local" />
+              </div>
+              <label className="space-y-2">
+                <Label htmlFor="task-assignedToId">Przypisz do</Label>
+                <select className={selectClass} defaultValue="" id="task-assignedToId" name="assignedToId">
+                  <option value="">Nieprzypisane</option>
+                  {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.name ?? assignee.email}</option>)}
+                </select>
+              </label>
+              <Button size="sm" type="submit">Utworz zadanie</Button>
+            </form>
+          )}
+          {tasks.map((task) => (
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3 text-sm" key={task.id}>
+              <p>
+                <strong>{task.title}</strong><br />
+                {task.status}{task.priority ? ` - ${task.priority}` : ""}{task.dueAt ? ` - ${new Date(task.dueAt).toLocaleDateString("pl-PL")}` : ""}
+                {task.assignedTo ? <><br />{task.assignedTo.name ?? task.assignedTo.email}</> : null}
+              </p>
+              {canMutate && (
+                <div className="space-y-2">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <select className={selectClass} defaultValue={task.assignedTo?.id ?? ""} id={`task-assignee-${task.id}`}>
+                      <option value="">Nieprzypisane</option>
+                      {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.name ?? assignee.email}</option>)}
+                    </select>
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const select = document.getElementById(`task-assignee-${task.id}`) as HTMLSelectElement;
+                        void assignTask(task.id, select.value || null);
+                      }}
+                    >
+                      Przypisz
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button disabled={task.status === "IN_PROGRESS"} size="sm" type="button" variant="outline" onClick={() => void updateTaskStatus(task.id, "IN_PROGRESS")}>W toku</Button>
+                    <Button disabled={task.status === "DONE"} size="sm" type="button" variant="outline" onClick={() => void updateTaskStatus(task.id, "DONE")}>Zrobione</Button>
+                    <Button disabled={task.status === "CANCELLED"} size="sm" type="button" variant="ghost" onClick={() => void updateTaskStatus(task.id, "CANCELLED")}>Anuluj</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </RelationCard>
         <RelationCard title={lead ? "Źródło" : "Powiązane leady"} empty={lead ? "Lead ręczny bez formularza." : "Brak powiązanych leadów."}>
           {lead?.formSubmission && <p className="text-sm"><strong>{lead.formSubmission.formType}</strong><br />{lead.formSubmission.status} · {new Date(lead.formSubmission.createdAt).toLocaleString("pl-PL")}</p>}
