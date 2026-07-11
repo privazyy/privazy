@@ -19,7 +19,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     const form = new FormData(event.currentTarget);
     const result = await signIn("credentials", {
       callbackUrl,
-      email: String(form.get("email") ?? ""),
+      email: String(form.get("email") ?? "").trim().toLowerCase(),
       password: String(form.get("password") ?? ""),
       redirect: false,
     });
