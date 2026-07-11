@@ -4,7 +4,7 @@ Audit date: 2026-07-10. Base branch: `main` at `f58b905cc903c05175822ff55b075fcb
 
 ## Summary
 
-The current CRM is no longer only a static UI shell. `main` already contains guarded staff CRM APIs for leads and organizations, Prisma models for contacts, notes and tasks, and a database-backed `/admin` page. It is still not a complete operational CRM because commerce, invoices, breach, DSR, notifications, download history and document review workflows are missing or represented through adjacent tables.
+The current CRM is no longer only a static UI shell. `main` already contains guarded staff CRM APIs for leads and organizations, Prisma models for contacts, notes and tasks, and a database-backed `/crm` page. It is still not a complete operational CRM because commerce, invoices, breach, DSR, notifications, download history and document review workflows are missing or represented through adjacent tables.
 
 ## Data Models
 
@@ -16,7 +16,7 @@ Missing dedicated models: `Order`, `Payment`, `Invoice`, `DocumentInput`, `Gener
 
 | CRM Area | Current state | Data source | Mock/real | Security status | Operational status | Required work |
 | --- | --- | --- | --- | --- | --- | --- |
-| Dashboard | DB-backed counts and queues | Prisma service | Real/PARTIAL | Staff-only `/admin` | PARTIAL | More queues for commerce, breach, DSR |
+| Dashboard | DB-backed counts and queues | Prisma service | Real/PARTIAL | Staff-only `/crm` | PARTIAL | More queues for commerce, breach, DSR |
 | Leads | CRUD, status, assign, notes, convert | `Lead` | Real | Server role checks | READY for core ops | Add automated tests |
 | Organizations | CRUD, detail, notes | `Organization` | Real | Server role checks | READY for core ops | More relationships |
 | Contacts | Model and create endpoints | `ContactPerson` | Real/PARTIAL | Staff write only | PARTIAL | Edit/archive UI |
@@ -40,7 +40,7 @@ Missing dedicated models: `Order`, `Payment`, `Invoice`, `DocumentInput`, `Gener
 
 ## Security Findings
 
-- `/admin` redirects unauthenticated users and `CLIENT`.
+- `/crm` redirects unauthenticated users and `CLIENT`.
 - `/api/crm/*` uses server-side `requireCrmRead` or `requireCrmWrite`.
 - `READ_ONLY` is blocked from CRM mutations by API guards.
 - Public `/api/leads/iod` is separate from CRM API and does not accept CRM-only fields.

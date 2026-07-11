@@ -2,7 +2,7 @@
 
 | Finding | Before | After this PR | State |
 | --- | --- | --- | --- |
-| Public `/admin` and CRM lead API | No server gate on `main` baseline | Staff-only page and per-handler role checks | Fixed in scope |
+| Public `/crm` and CRM lead API | No server gate on `main` baseline | Staff-only page and per-handler role checks | Fixed in scope |
 | No operational Lead | IOD `FormSubmission` projection only | Dedicated Lead linked to raw intake | Added |
 | No CRM mutations | Shell actions were scaffold | Lead/org CRUD, notes, assignment and conversion | Improved |
 | No audit trail | CRM writes did not exist | Transactional allowlisted events | Added |

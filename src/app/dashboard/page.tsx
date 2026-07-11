@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -13,7 +14,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex flex-wrap gap-3">
           <Button asChild>
-            <Link href="/admin">CRM</Link>
+            <Link href={"/crm" as Route}>CRM</Link>
           </Button>
           <Button variant="outline" asChild>
             <Link href="/documents">Dokumenty</Link>

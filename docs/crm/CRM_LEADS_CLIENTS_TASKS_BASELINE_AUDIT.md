@@ -1,7 +1,7 @@
 # CRM leads, clients and tasks baseline audit
 
 Date: 2026-07-10
-Scope: `prisma/schema.prisma`, `/admin`, `/api/crm/*`, `src/server/crm/*`, `src/components/crm/*`, auth guards and package scripts.
+Scope: `prisma/schema.prisma`, `/crm`, `/api/crm/*`, `src/server/crm/*`, `src/components/crm/*`, auth guards and package scripts.
 
 ## Existing models
 
@@ -13,18 +13,18 @@ The CRM already had guarded routes for leads, organizations, notes, tasks, timel
 
 ## Admin UI before this PR
 
-`/admin` rendered a database-backed CRM shell with a single React workspace. It had dashboard/list/detail states, create dialogs and basic quick actions. It was not a pure static mock, but it still felt partially form-only because several daily actions had no dedicated endpoint or visible action.
+`/crm` rendered a database-backed CRM shell with a single React workspace. It had dashboard/list/detail states, create dialogs and basic quick actions. It was not a pure static mock, but it still felt partially form-only because several daily actions had no dedicated endpoint or visible action.
 
 ## Baseline table
 
 | Area | Current state | Real/mock | Missing operational pieces | Security notes | Required work |
 | --- | --- | --- | --- | --- | --- |
-| Leads | DB model, list, create, update, assign, status, notes, tasks, convert | Real foundation | Archive endpoint/action, priority filtering, clearer workflow docs | `/admin` and API guarded; READ_ONLY blocked on writes | Add archive, filters, audit docs |
+| Leads | DB model, list, create, update, assign, status, notes, tasks, convert | Real foundation | Archive endpoint/action, priority filtering, clearer workflow docs | `/crm` and API guarded; READ_ONLY blocked on writes | Add archive, filters, audit docs |
 | Clients/Organizations | DB model, list, create, update, contacts, notes, tasks | Real foundation | Archive endpoint/action, contacts GET/PATCH, contact primary workflow docs | CLIENT blocked server-side; owner validated as staff | Add archive and contact edit APIs |
 | Tasks | DB model, list, create, update, status | Real foundation | Dedicated assign/complete/cancel endpoints and clearer UI | Mutations require staff write role | Add task action routes and audit actions |
 | Notes | `CrmNote` model and create APIs | Real partial | No edit/archive policy yet | INTERNAL only; CLIENT not exposed | Document remaining edit/archive gap |
 | Timeline | AuditLog-backed timeline | Real partial | No separate `CrmActivity` model | Paginated and guarded reads | Keep AuditLog timeline, document mapping |
-| Dashboard | DB-backed KPIs and empty states | Real partial | Needed lead/client/task-specific KPI set | `/admin` guard applies | Replace headline KPIs with operational CRM KPIs |
+| Dashboard | DB-backed KPIs and empty states | Real partial | Needed lead/client/task-specific KPI set | `/crm` guard applies | Replace headline KPIs with operational CRM KPIs |
 | Permissions | `requireCrmRead`, `requireCrmWrite`, role gates | Real | Needed named helper surface | READ_ONLY write block exists | Add shared permissions exports |
 | Audit/activity | AuditLog writes for core mutations | Real partial | Missing audit for archive/contact edit/task action names | Metadata sanitized by server code | Centralize audit/activity helper |
 

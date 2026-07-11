@@ -11,7 +11,7 @@ Baseline: `main` at `0bea57cc8bf87f864015dd6a21dfc357a8029c81`.
 | CrmNote | Missing | Internal notes with author | Client-visible notes | Staff-only API |
 | CrmTask | Missing | Schema and serializer foundation | Task CRUD/timeline UI | Recommended follow-up |
 | CRM API | Public read-only IOD projection | Guarded lead/org CRUD and notes | Other CRM modules | Every route checks the session role |
-| `/admin` | Database-backed shell, but public on this baseline | Staff gate and real lead/org actions | Rebuilding the shell | Existing layout and tokens retained |
+| `/crm` | Database-backed shell, but public on this baseline | Staff gate and real lead/org actions | Rebuilding the shell | Existing layout and tokens retained |
 | Pagination/filtering | Unbounded semantics in shell | API cursor/limits plus bounded UI lists | Exports | API max limit is 100 |
 | Audit | Existing `AuditLog`, unused by CRM mutations | Transactional CRM events | Central event bus | Metadata excludes note bodies and raw payloads |
 

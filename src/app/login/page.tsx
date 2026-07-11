@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 function safeCallbackUrl(value: string | undefined) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/admin";
+    return "/crm";
   }
 
   return value;

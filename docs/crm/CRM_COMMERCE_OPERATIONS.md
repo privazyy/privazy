@@ -11,4 +11,4 @@ Rules for future implementation:
 - no live payments without approval,
 - no live invoices without approval,
 - READ_ONLY cannot mutate,
-- sandbox/admin overrides must be explicit and audited.
+- sandbox/crm overrides must be explicit and audited.

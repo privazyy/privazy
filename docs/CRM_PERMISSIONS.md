@@ -1,6 +1,6 @@
 # CRM Permissions
 
-| Role | `/admin` | CRM read API | CRM mutations |
+| Role | `/crm` | CRM read API | CRM mutations |
 | --- | --- | --- | --- |
 | Unauthenticated | Redirect to public landing | `401` | `401` |
 | `CLIENT` | Redirect to client area | `403` | `403` |

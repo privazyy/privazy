@@ -21,7 +21,7 @@ The schema uses:
 
 1. Create a lead manually or receive one from the existing checker/form intake path.
 2. Search/filter the lead list by query, status, priority, source or assignee.
-3. Open detail from `/admin`.
+3. Open detail from `/crm`.
 4. Change status, priority and assignee.
 5. Add internal notes and linked tasks.
 6. Convert to organization after duplicate review.

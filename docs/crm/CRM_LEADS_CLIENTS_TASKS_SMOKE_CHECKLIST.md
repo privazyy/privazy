@@ -2,8 +2,8 @@
 
 ## Auth
 
-- [ ] Unauthenticated user cannot open `/admin`.
-- [ ] CLIENT cannot open `/admin`.
+- [ ] Unauthenticated user cannot open `/crm`.
+- [ ] CLIENT cannot open `/crm`.
 - [ ] CLIENT cannot use `/api/crm/*`.
 - [ ] READ_ONLY can read lists/details.
 - [ ] READ_ONLY cannot create/update/archive/complete.

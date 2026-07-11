@@ -18,7 +18,7 @@ Partial sections:
 - breach and DSR are controlled empty states until modules exist.
 # Leads, clients and tasks dashboard addendum
 
-The `/admin` dashboard is DB-backed and now prioritizes daily CRM work:
+The `/crm` dashboard is DB-backed and now prioritizes daily CRM work:
 
 - new leads
 - unassigned leads

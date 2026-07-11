@@ -759,7 +759,7 @@ function RecordDetail({
         <Card padding="md" variant="flat">
           <h2 className="text-lg font-bold text-[var(--text-strong)]">Źródło</h2>
           <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-4 text-sm leading-relaxed text-[var(--text-body)]">
-            Ten widok korzysta z rekordu wybranego w tabeli CRM. Dane pochodzą z serwerowego payloadu Prisma pobranego dla route `/admin`.
+            Ten widok korzysta z rekordu wybranego w tabeli CRM. Dane pochodzą z serwerowego payloadu Prisma pobranego dla route `/crm`.
           </div>
           <Button className="mt-4 w-full" type="button" variant="outline" onClick={onBack}>
             {backLabel}
@@ -839,8 +839,8 @@ function PlatformModule({ data, onPreview }: { data: CrmListModule; onPreview: (
   );
 }
 
-export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmDatabaseData }) {
-  const [route, setRoute] = useState<CrmRoute>("dashboard");
+export function PrivazyCrm({ canMutate, data, initialRoute = "dashboard" }: { canMutate: boolean; data: CrmDatabaseData; initialRoute?: CrmRoute }) {
+  const [route, setRoute] = useState<CrmRoute>(initialRoute);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);

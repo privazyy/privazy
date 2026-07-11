@@ -6,7 +6,7 @@
 | LAWYER | Yes | Yes | Yes | Legal/review operations |
 | OPERATOR | Yes | Yes | No by default | Leads, organizations, tasks |
 | READ_ONLY | Yes | No | No | Can inspect operational data only |
-| CLIENT | No | No | No | Redirected from `/admin`, blocked from CRM APIs |
+| CLIENT | No | No | No | Redirected from `/crm`, blocked from CRM APIs |
 
 Current guards:
 

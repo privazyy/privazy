@@ -2,7 +2,7 @@
 
 ## Layers
 
-- `src/app/admin/page.tsx`: protected CRM shell entry.
+- `src/app/crm/page.tsx`: protected CRM shell entry.
 - `src/components/crm/*`: client-side operational UI and detail forms.
 - `src/app/api/crm/*`: staff-only Route Handlers.
 - `src/server/crm/access.ts`: current read/write role guard.

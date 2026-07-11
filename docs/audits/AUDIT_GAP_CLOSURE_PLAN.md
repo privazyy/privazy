@@ -3,7 +3,7 @@
 Completed in this PR:
 
 1. Dedicated Lead and related CRM schema.
-2. Staff/role authorization on `/admin` and `/api/crm/*`.
+2. Staff/role authorization on `/crm` and `/api/crm/*`.
 3. Validated, bounded lead and organization APIs.
 4. Safe conversion, internal notes, assignees and transactional audit.
 5. Public IOD intake connected directly to Lead.

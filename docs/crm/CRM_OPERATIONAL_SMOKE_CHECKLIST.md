@@ -2,8 +2,8 @@
 
 ## Auth
 
-- [ ] Unauthenticated `/admin` blocked.
-- [ ] CLIENT `/admin` blocked.
+- [ ] Unauthenticated `/crm` blocked.
+- [ ] CLIENT `/crm` blocked.
 - [ ] READ_ONLY can enter admin.
 - [ ] READ_ONLY cannot mutate CRM APIs.
 - [ ] OPERATOR can mutate leads, organizations and tasks.

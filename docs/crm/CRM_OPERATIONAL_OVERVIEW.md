@@ -4,7 +4,7 @@ This PR moves CRM from a partial shell toward an operational staff tool by using
 
 Ready in this PR:
 
-- guarded staff `/admin`,
+- guarded staff `/crm`,
 - DB-backed dashboard,
 - leads and organizations core CRUD,
 - notes,

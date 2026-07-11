@@ -34,4 +34,4 @@ npm run dev
 npm run responsive:check
 ```
 
-Skrypt sprawdza `/` oraz `/admin`, szuka bledow konsoli, overlayow Next.js i niekontrolowanego poziomego overflow. Jesli komponent wymaga poziomego przewijania, oznacz jego wrapper jako kontrolowany scroll.
+Skrypt sprawdza `/` oraz `/crm`, szuka bledow konsoli, overlayow Next.js i niekontrolowanego poziomego overflow. Jesli komponent wymaga poziomego przewijania, oznacz jego wrapper jako kontrolowany scroll.
