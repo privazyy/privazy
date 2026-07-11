@@ -34,7 +34,7 @@ export function BlogHeader() {
         </nav>
         <div className="ml-auto hidden items-center gap-3 sm:flex">
           <Link
-            href={"/admin" as Route}
+            href={"/crm" as Route}
             className="text-sm font-semibold text-slate-950 transition-colors hover:text-blue-700"
           >
             Zaloguj

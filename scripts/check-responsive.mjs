@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 const baseUrl = (process.env.RESPONSIVE_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const routes = [
   "/",
-  "/admin",
+  "/crm",
   "/blog",
   "/blog/czy-musisz-powolac-inspektora-ochrony-danych",
   "/sklep/polityka-prywatnosci",

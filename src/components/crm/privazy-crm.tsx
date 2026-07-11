@@ -10,7 +10,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
-import { CrmCreateDialog, CrmRecordDetail } from "./crm-records";
+import { CrmCreateDialog, CrmRecordDetail, CrmTaskCreateDialog } from "./crm-records";
 import {
   navGroups,
   routeAliases,
@@ -339,9 +339,13 @@ function DataTable({
                     ) : isTag && row.tag ? (
                       <Badge tone={row.tag.tone}>{row.tag.label}</Badge>
                     ) : column === "" ? (
-                      <IconButton label="Więcej" size="sm" variant="ghost">
-                        <CrmIcon name="MoreHorizontal" />
-                      </IconButton>
+                      row.actionRoute ? (
+                        <Button size="sm" type="button" variant="outline" onClick={() => onRoute?.(row.actionRoute!, row)}>
+                          Otwórz
+                        </Button>
+                      ) : (
+                        <span className="text-[var(--text-faint)]">—</span>
+                      )
                     ) : (
                       <span className="block max-w-[190px] truncate">{cell}</span>
                     )}
@@ -356,10 +360,18 @@ function DataTable({
   );
 }
 
-function GenericModuleView({ module, onRoute }: { module: GenericModule; onRoute: (route: CrmRoute, row?: TableRow) => void }) {
+function GenericModuleView({
+  module,
+  onPrimary,
+  onRoute,
+}: {
+  module: GenericModule;
+  onPrimary?: () => void;
+  onRoute: (route: CrmRoute, row?: TableRow) => void;
+}) {
   return (
     <div className="space-y-5">
-      <ModuleHeader action={module.action} icon={module.icon} subtitle={module.subtitle} title={module.title} />
+      <ModuleHeader action={onPrimary ? module.action : undefined} icon={module.icon} onPrimary={onPrimary} subtitle={module.subtitle} title={module.title} />
       <KpiGrid items={module.kpis} onRoute={onRoute} />
       <Card padding="md" variant="flat">
         <div className="space-y-4">
@@ -371,16 +383,100 @@ function GenericModuleView({ module, onRoute }: { module: GenericModule; onRoute
   );
 }
 
-function Dashboard({ data, onRoute }: { data: CrmDatabaseData["dashboard"]; onRoute: (route: CrmRoute) => void }) {
+function TaskModuleView({
+  canMutate,
+  module,
+  onCreate,
+  onRoute,
+}: {
+  canMutate: boolean;
+  module: GenericModule;
+  onCreate?: () => void;
+  onRoute: (route: CrmRoute, row?: TableRow) => void;
+}) {
+  const [savingId, setSavingId] = useState<string>();
+  const [error, setError] = useState<string>();
+
+  async function setTaskStatus(taskId: string, status: "IN_PROGRESS" | "DONE" | "CANCELLED") {
+    setSavingId(taskId);
+    setError(undefined);
+    const response = await fetch(`/api/crm/tasks/${taskId}/status`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error ?? "Nie udalo sie zmienic statusu zadania.");
+      setSavingId(undefined);
+      return;
+    }
+    window.location.reload();
+  }
+
+  return (
+    <div className="space-y-5">
+      <ModuleHeader action={onCreate ? module.action : undefined} icon={module.icon} onPrimary={onCreate} subtitle={module.subtitle} title={module.title} />
+      <KpiGrid items={module.kpis} onRoute={onRoute} />
+      {error && <p className="rounded-[var(--radius-md)] bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">{error}</p>}
+      <Card padding="md" variant="flat">
+        <div className="space-y-4">
+          <FilterBar labels={module.filters.map((filter) => filter.label)} />
+          <DataTable columns={module.columns} emptyMessage={module.emptyMessage} onRoute={onRoute} rows={module.rows} />
+          {canMutate && module.rows.length > 0 && (
+            <div className="space-y-3 border-t border-[var(--border-subtle)] pt-4">
+              <h2 className="text-sm font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">Szybka zmiana statusu</h2>
+              {module.rows.map((row) => (
+                <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3 md:flex-row md:items-center md:justify-between" key={row.id ?? row.primary}>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[var(--text-strong)]">{row.primary}</p>
+                    <p className="mt-1 truncate text-sm text-[var(--text-muted)]">{row.secondary ?? row.cells[4] ?? ""}</p>
+                  </div>
+                  {row.id && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button disabled={savingId === row.id} size="sm" type="button" variant="outline" onClick={() => void setTaskStatus(row.id!, "IN_PROGRESS")}>W toku</Button>
+                      <Button disabled={savingId === row.id} size="sm" type="button" variant="outline" onClick={() => void setTaskStatus(row.id!, "DONE")}>Zrobione</Button>
+                      <Button disabled={savingId === row.id} size="sm" type="button" variant="ghost" onClick={() => void setTaskStatus(row.id!, "CANCELLED")}>Anuluj</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function Dashboard({ actorName, canMutate, data, onQuickAdd, onRoute }: { actorName: string; canMutate: boolean; data: CrmDatabaseData["dashboard"]; onQuickAdd: (route: CrmRoute) => void; onRoute: (route: CrmRoute) => void }) {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm text-[var(--text-muted)]">Poniedziałek, 29 czerwca - Centrum operacyjne</p>
-          <h1 className="mt-1 text-2xl font-extrabold text-[var(--text-strong)] sm:text-[26px]">Dzień dobry, Anna</h1>
+          <p className="text-sm text-[var(--text-muted)]">Centrum operacyjne CRM</p>
+          <h1 className="mt-1 text-2xl font-extrabold text-[var(--text-strong)] sm:text-[26px]">Dzień dobry, {actorName}</h1>
         </div>
-        <FilterBar labels={["Ogólny", "Sprzedaż", "IOD", "Dokumenty", "Księgowość"]} />
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={() => onRoute("leads")}>Leady</Button>
+          <Button type="button" variant="outline" onClick={() => onRoute("clients")}>Klienci</Button>
+          <Button type="button" variant="outline" onClick={() => onRoute("tasks")}>Zadania</Button>
+        </div>
       </div>
+
+      <Card padding="md" variant="flat">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--text-strong)]">Operacje CRM</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Twórz rekordy zapisywane w bazie i przechodź bezpośrednio do operacyjnych list.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!canMutate} type="button" onClick={() => onQuickAdd("leads")}><CrmIcon name="UserPlus" />Dodaj lead</Button>
+            <Button disabled={!canMutate} type="button" variant="outline" onClick={() => onQuickAdd("clients")}><CrmIcon name="Building2" />Dodaj klienta</Button>
+            <Button disabled={!canMutate} type="button" variant="outline" onClick={() => onQuickAdd("tasks")}><CrmIcon name="SquareCheckBig" />Dodaj zadanie</Button>
+          </div>
+        </div>
+      </Card>
 
       <KpiGrid items={data.kpis} onRoute={onRoute} />
 
@@ -388,7 +484,7 @@ function Dashboard({ data, onRoute }: { data: CrmDatabaseData["dashboard"]; onRo
         <Card padding="md" variant="flat">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-[var(--text-strong)]">Alerty operacyjne</h2>
-            <Badge tone="warning">5 pilnych</Badge>
+            <Badge tone={data.alerts.length > 0 ? "warning" : "neutral"}>{data.alerts.length} alertów</Badge>
           </div>
           <div className="space-y-3">
             {data.alerts.length === 0 ? (
@@ -685,7 +781,7 @@ function RecordDetail({
         <Card padding="md" variant="flat">
           <h2 className="text-lg font-bold text-[var(--text-strong)]">Źródło</h2>
           <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-4 text-sm leading-relaxed text-[var(--text-body)]">
-            Ten widok korzysta z rekordu wybranego w tabeli CRM. Dane pochodzą z serwerowego payloadu Prisma pobranego dla route `/admin`.
+            Ten widok korzysta z rekordu wybranego w tabeli CRM. Dane pochodzą z serwerowego payloadu Prisma pobranego dla route `/crm`.
           </div>
           <Button className="mt-4 w-full" type="button" variant="outline" onClick={onBack}>
             {backLabel}
@@ -765,8 +861,8 @@ function PlatformModule({ data, onPreview }: { data: CrmListModule; onPreview: (
   );
 }
 
-export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmDatabaseData }) {
-  const [route, setRoute] = useState<CrmRoute>("dashboard");
+export function PrivazyCrm({ actorName, actorRole, canMutate, data, initialRoute = "dashboard" }: { actorName: string; actorRole: string; canMutate: boolean; data: CrmDatabaseData; initialRoute?: CrmRoute }) {
+  const [route, setRoute] = useState<CrmRoute>(initialRoute);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -777,6 +873,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
   const [platformPreview, setPlatformPreview] = useState(false);
   const [selectedRow, setSelectedRow] = useState<TableRow | null>(null);
   const [createMode, setCreateMode] = useState<"lead" | "organization" | null>(null);
+  const [taskCreateOpen, setTaskCreateOpen] = useState(false);
 
   const setRouteAndClose = (nextRoute: CrmRoute, row?: TableRow) => {
     setRoute(nextRoute);
@@ -785,16 +882,22 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
     setAddOpen(false);
     setNotifOpen(false);
     setCmdOpen(false);
+    setTaskCreateOpen(false);
   };
 
   const handleQuickAdd = (target: CrmRoute) => {
     setAddOpen(false);
+    setCmdOpen(false);
     if (target === "leads") {
       setCreateMode("lead");
       return;
     }
     if (target === "clients") {
       setCreateMode("organization");
+      return;
+    }
+    if (target === "tasks") {
+      setTaskCreateOpen(true);
       return;
     }
     setRouteAndClose(target);
@@ -813,7 +916,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
       requests: data.lists.requests,
     };
 
-    if (route === "dashboard") return <Dashboard data={data.dashboard} onRoute={setRouteAndClose} />;
+    if (route === "dashboard") return <Dashboard actorName={actorName} canMutate={canMutate} data={data.dashboard} onQuickAdd={handleQuickAdd} onRoute={setRouteAndClose} />;
     if (route === "leads") return <LeadModule data={data.lists.leads} leadView={leadView} onCreate={canMutate ? () => setCreateMode("lead") : undefined} onRoute={setRouteAndClose} setLeadView={setLeadView} />;
     if (route === "lead-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="lead" onBack={() => setRouteAndClose("leads")} />;
     if (route === "client-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="organization" onBack={() => setRouteAndClose("clients")} />;
@@ -852,9 +955,20 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
     }
 
     const crmModule = data.modules[route];
-    if (crmModule) return <GenericModuleView module={crmModule} onRoute={setRouteAndClose} />;
+    if (crmModule && route === "tasks") {
+      return <TaskModuleView canMutate={canMutate} module={crmModule} onCreate={canMutate ? () => setTaskCreateOpen(true) : undefined} onRoute={setRouteAndClose} />;
+    }
+    if (crmModule) {
+      return (
+        <GenericModuleView
+          module={crmModule}
+          onPrimary={route === "orgs" && canMutate ? () => setCreateMode("organization") : undefined}
+          onRoute={setRouteAndClose}
+        />
+      );
+    }
 
-    return <Dashboard data={data.dashboard} onRoute={setRouteAndClose} />;
+    return <Dashboard actorName={actorName} canMutate={canMutate} data={data.dashboard} onQuickAdd={handleQuickAdd} onRoute={setRouteAndClose} />;
   })();
 
   return (
@@ -930,9 +1044,6 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
                       ["Dodaj klienta", "clients"],
                       ["Dodaj lead", "leads"],
                       ["Utwórz zadanie", "tasks"],
-                      ["Dodaj dokument", "documents"],
-                      ["Dodaj incydent", "breaches"],
-                      ["Wyślij wiadomość", "inbox"],
                     ].map(([label, target]) => (
                       <button className="flex h-10 w-full items-center gap-3 rounded-[var(--radius-sm)] px-2 text-sm font-semibold text-[var(--text-body)] hover:bg-[var(--surface-sunken)]" key={label} type="button" onClick={() => handleQuickAdd(target as CrmRoute)}>
                         <CrmIcon className="size-4 text-[var(--brand-ink)]" name="Plus" />
@@ -945,8 +1056,8 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
               <div className="hidden items-center gap-2 rounded-[var(--radius-md)] p-1 hover:bg-[var(--surface-sunken)] md:flex">
                 <span className="grid size-8 place-items-center rounded-full bg-[var(--brand)] text-xs font-bold text-white">AK</span>
                 <div className="leading-tight">
-                  <div className="text-sm font-semibold text-[var(--text-strong)]">Anna Kowalczyk</div>
-                  <div className="text-xs text-[var(--text-muted)]">Operations Manager</div>
+                  <div className="max-w-36 truncate text-sm font-semibold text-[var(--text-strong)]">{actorName}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{actorRole}</div>
                 </div>
                 <CrmIcon className="size-4 text-[var(--text-faint)]" name="ChevronDown" />
               </div>
@@ -981,12 +1092,17 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
             <div className="mt-3 space-y-2">
               {[
                 ["Dodaj lead", "Nowy potencjalny klient", "leads", "UserPlus"],
-                ["Dodaj naruszenie", "Rejestruj incydent - timer 72h", "breaches", "TriangleAlert"],
+                ["Utworz zadanie", "Przypisz zadanie do leada albo organizacji", "tasks", "SquareCheckBig"],
                 ["Klienci", "Wszystkie organizacje", "clients", "Building2"],
-                ["Skrzynka", "9 nieprzeczytanych", "inbox", "Inbox"],
+                ["Organizacje", "Lista organizacji z bazy", "orgs", "Network"],
                 ["Produkty / sklep", "Ceny i widoczność", "products", "Tag"],
               ].map(([label, subtitle, target, icon]) => (
-                <button className="flex w-full items-center gap-3 rounded-[var(--radius-md)] p-3 text-left hover:bg-[var(--surface-sunken)]" key={label} type="button" onClick={() => setRouteAndClose(target as CrmRoute)}>
+                <button
+                  className="flex w-full items-center gap-3 rounded-[var(--radius-md)] p-3 text-left hover:bg-[var(--surface-sunken)]"
+                  key={label}
+                  type="button"
+                  onClick={() => (target === "leads" || target === "tasks" ? handleQuickAdd(target as CrmRoute) : setRouteAndClose(target as CrmRoute))}
+                >
                   <span className="grid size-10 place-items-center rounded-[var(--radius-sm)] bg-[var(--brand-soft)] text-[var(--brand-ink)]">
                     <CrmIcon className="size-5" name={icon} />
                   </span>
@@ -1043,6 +1159,7 @@ export function PrivazyCrm({ canMutate, data }: { canMutate: boolean; data: CrmD
       )}
 
       {createMode && <CrmCreateDialog mode={createMode} onClose={() => setCreateMode(null)} />}
+      {taskCreateOpen && <CrmTaskCreateDialog onClose={() => setTaskCreateOpen(false)} />}
     </div>
   );
 }

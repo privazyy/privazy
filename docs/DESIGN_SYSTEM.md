@@ -129,4 +129,4 @@ npm run build
 npm run responsive:check
 ```
 
-`responsive:check` testuje `/` i `/admin` na telefonie, tablecie, laptopie, desktopie i duzych ekranach.
+`responsive:check` testuje `/` i `/crm` na telefonie, tablecie, laptopie, desktopie i duzych ekranach.

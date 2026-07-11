@@ -8,9 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/tests/*.test.mjs",
+    "test:security": "node --test scripts/tests/crm-security.test.mjs",
+    "test:smoke": "node --test scripts/tests/crm-routing.test.mjs",
     "responsive:check": "node scripts/check-responsive.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "db:local:start": "prisma dev --detach --name privazy-crm-local",
+    "db:seed": "node prisma/seed.mjs",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {

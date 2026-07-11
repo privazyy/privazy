@@ -15,7 +15,7 @@ Use a disposable local Postgres/Supabase database. Do not run this migration aga
 - [ ] `CLIENT` CRM GET/POST returns `403`.
 - [ ] `READ_ONLY` can list/detail and receives `403` for create, update, note, assign and convert.
 - [ ] `OPERATOR`, `LAWYER` and `ADMIN` can perform allowed mutations.
-- [ ] `/admin` redirects unauthenticated users to the public landing and `CLIENT` to `/client`.
+- [ ] `/crm` redirects unauthenticated users to the public landing and `CLIENT` to `/client`.
 
 ## Validation and lists
 

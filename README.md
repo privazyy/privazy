@@ -23,6 +23,8 @@ npm run dev
 
 Port `3000` is configured for preview in Codespaces.
 
+The public application runs at `http://localhost:3000`. The canonical staff CRM runs at `http://localhost:3000/crm`; `/admin` is retained only as a legacy redirect. See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for the complete local workflow and [docs/crm/CRM_ROUTING.md](docs/crm/CRM_ROUTING.md) for access rules.
+
 ## Quick Edits
 
 For simple changes without a terminal, use `github.dev`:

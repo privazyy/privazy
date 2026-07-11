@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getPrisma } from "@/server/db/prisma";
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().min(8),
 });
 
@@ -30,7 +30,7 @@ export const authConfig = {
         }
 
         const user = await getPrisma().user.findUnique({
-          where: { email: parsed.data.email.toLowerCase() },
+          where: { email: parsed.data.email.trim().toLowerCase() },
         });
 
         if (!user) {

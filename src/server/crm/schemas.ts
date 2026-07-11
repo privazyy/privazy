@@ -120,8 +120,10 @@ export const leadListQuerySchema = z
   .object({
     q: z.string().trim().max(160).optional(),
     status: z.enum(["NEW", "TO_CONTACT", "CONTACTED", "QUALIFIED", "UNQUALIFIED", "PROPOSAL_SENT", "CONVERTED", "WON", "LOST", "ARCHIVED"]).optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
     source: z.enum(["IOD_CHECKER", "CONTACT_FORM", "MANUAL", "WEBSITE", "REFERRAL", "OTHER"]).optional(),
     assignedToId: z.string().trim().max(64).optional(),
+    sort: z.enum(["newest", "updated", "priority"]).default("newest"),
     cursor: z.string().trim().max(64).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
@@ -133,7 +135,103 @@ export const organizationListQuerySchema = z
     status: z.enum(["PROSPECT", "ACTIVE", "INACTIVE", "ARCHIVED"]).optional(),
     industry: z.string().trim().max(120).optional(),
     ownerId: z.string().trim().max(64).optional(),
+    sort: z.enum(["newest", "updated", "name"]).default("updated"),
     cursor: z.string().trim().max(64).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
   .strict();
+
+const contactCreateBaseSchema = z
+  .object({
+    leadId: z.string().trim().min(1).max(64).optional(),
+    organizationId: z.string().trim().min(1).max(64).optional(),
+    fullName: z.string().trim().min(2).max(160),
+    email: z.email().max(180).transform((value) => value.toLowerCase()).optional(),
+    phone: optionalText(48),
+    role: optionalText(120),
+    isPrimary: z.boolean().default(false),
+  })
+  .strict();
+
+export const contactCreateSchema = contactCreateBaseSchema.refine(
+  (value) => Boolean(value.leadId || value.organizationId),
+  "Kontakt wymaga leada lub organizacji.",
+);
+
+export const contactBodySchema = contactCreateBaseSchema.omit({ leadId: true, organizationId: true });
+
+export const contactUpdateSchema = contactCreateBaseSchema
+  .omit({ leadId: true, organizationId: true })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "Podaj co najmniej jedno pole.");
+
+export const contactListQuerySchema = z
+  .object({
+    cursor: z.string().trim().max(64).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
+
+const crmTaskCreateBaseSchema = z
+  .object({
+    leadId: z.string().trim().min(1).max(64).optional(),
+    organizationId: z.string().trim().min(1).max(64).optional(),
+    title: z.string().trim().min(2).max(200),
+    description: nullableOptionalText(2000),
+    status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]).default("OPEN"),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).default("NORMAL"),
+    dueAt: z.coerce.date().nullable().optional(),
+    assignedToId: z.string().trim().max(64).nullable().optional(),
+  })
+  .strict();
+
+export const crmTaskCreateSchema = crmTaskCreateBaseSchema.refine(
+  (value) => Boolean(value.leadId || value.organizationId),
+  "Zadanie wymaga powiazanego zasobu CRM.",
+);
+
+export const crmTaskBodySchema = crmTaskCreateBaseSchema.omit({ leadId: true, organizationId: true });
+
+export const crmTaskUpdateSchema = crmTaskCreateBaseSchema
+  .omit({ leadId: true, organizationId: true })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "Podaj co najmniej jedno pole.");
+
+export const crmTaskStatusChangeSchema = z
+  .object({
+    status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]),
+  })
+  .strict();
+
+export const crmTaskAssignSchema = z
+  .object({
+    assignedToId: z.string().trim().max(64).nullable(),
+  })
+  .strict();
+
+export const crmTaskListQuerySchema = z
+  .object({
+    q: z.string().trim().max(160).optional(),
+    status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]).optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+    assignedToId: z.string().trim().max(64).optional(),
+    leadId: z.string().trim().max(64).optional(),
+    organizationId: z.string().trim().max(64).optional(),
+    due: z.enum(["overdue", "today", "upcoming"]).optional(),
+    cursor: z.string().trim().max(64).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
+
+export const crmActivityListQuerySchema = z
+  .object({
+    leadId: z.string().trim().max(64).optional(),
+    organizationId: z.string().trim().max(64).optional(),
+    cursor: z.string().trim().max(64).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
+
+export const emptyCrmActionSchema = z.object({}).strict();
