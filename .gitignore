@@ -15,6 +15,7 @@ coverage/
 out/
 build/
 .vercel/
+.codex-*.log
 next-env.d.ts
 *.tsbuildinfo
 
