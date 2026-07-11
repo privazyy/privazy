@@ -17,3 +17,10 @@ test("application links and responsive smoke use /crm", () => {
     assert.doesNotMatch(source, /href=.*\/admin/);
   }
 });
+
+test("login form uses the Auth.js v5 redirect option and never defaults to GET", () => {
+  const source = read("src/components/auth/login-form.tsx");
+  assert.match(source, /redirectTo: callbackUrl/);
+  assert.match(source, /method="post"/);
+  assert.doesNotMatch(source, /callbackUrl,\s*\n\s*email:/);
+});

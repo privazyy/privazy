@@ -18,10 +18,10 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     setError(undefined);
     const form = new FormData(event.currentTarget);
     const result = await signIn("credentials", {
-      callbackUrl,
       email: String(form.get("email") ?? "").trim().toLowerCase(),
       password: String(form.get("password") ?? ""),
       redirect: false,
+      redirectTo: callbackUrl,
     });
 
     if (!result?.ok) {
@@ -42,7 +42,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
           Uzyj konta z rola ADMIN, LAWYER, OPERATOR albo READ_ONLY.
         </p>
       </div>
-      <form className="space-y-4" onSubmit={submit}>
+      <form className="space-y-4" method="post" onSubmit={submit}>
         <label className="space-y-2">
           <Label htmlFor="email">E-mail</Label>
           <Input autoComplete="email" id="email" name="email" required type="email" />
