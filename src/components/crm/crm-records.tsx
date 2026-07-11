@@ -333,6 +333,7 @@ export function CrmRecordDetail({
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [conversionMatches, setConversionMatches] = useState<Array<{ id: string; name: string; nip: string | null }>>([]);
+  const [editingContactId, setEditingContactId] = useState<string>();
 
   const endpoint = kind === "lead" ? `/api/crm/leads/${id}` : `/api/crm/organizations/${id}`;
 
@@ -500,21 +501,16 @@ export function CrmRecordDetail({
     setNotice("Kontakt zaktualizowany.");
   }
 
-  async function editContact(contact: Contact) {
-    const fullName = window.prompt("Imie i nazwisko kontaktu", contact.fullName);
-    if (fullName === null) return;
-    const email = window.prompt("E-mail kontaktu", contact.email ?? "");
-    if (email === null) return;
-    const phone = window.prompt("Telefon kontaktu", contact.phone ?? "");
-    if (phone === null) return;
-    const role = window.prompt("Rola kontaktu", contact.role ?? "");
-    if (role === null) return;
+  async function saveContact(event: FormEvent<HTMLFormElement>, contact: Contact) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
     await updateContact(contact, {
-      email: email || undefined,
-      fullName,
-      phone: phone || undefined,
-      role: role || undefined,
+      email: String(form.get("email") ?? "") || undefined,
+      fullName: String(form.get("fullName") ?? ""),
+      phone: String(form.get("phone") ?? "") || undefined,
+      role: String(form.get("role") ?? "") || undefined,
     });
+    setEditingContactId(undefined);
   }
 
   async function archiveRecord() {
@@ -685,13 +681,25 @@ export function CrmRecordDetail({
               </p>
               {canMutate && (
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" type="button" variant="outline" onClick={() => void editContact(contact)}>Edytuj</Button>
+                  <Button size="sm" type="button" variant="outline" onClick={() => setEditingContactId((current) => current === contact.id ? undefined : contact.id)}>Edytuj</Button>
                   {!contact.isPrimary && (
                     <Button size="sm" type="button" variant="ghost" onClick={() => void updateContact(contact, { isPrimary: true })}>
                       Ustaw glowny
                     </Button>
                   )}
                 </div>
+              )}
+              {canMutate && editingContactId === contact.id && (
+                <form className="grid gap-3 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] p-3" onSubmit={(event) => void saveContact(event, contact)}>
+                  <Field defaultValue={contact.fullName} label="Imię i nazwisko" name="fullName" required />
+                  <Field defaultValue={contact.email ?? ""} label="E-mail" name="email" type="email" />
+                  <Field defaultValue={contact.phone ?? ""} label="Telefon" name="phone" />
+                  <Field defaultValue={contact.role ?? ""} label="Rola" name="role" />
+                  <div className="flex gap-2">
+                    <Button size="sm" type="submit">Zapisz kontakt</Button>
+                    <Button size="sm" type="button" variant="ghost" onClick={() => setEditingContactId(undefined)}>Anuluj</Button>
+                  </div>
+                </form>
               )}
             </div>
           ))}

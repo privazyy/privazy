@@ -52,5 +52,5 @@ export default async function CrmPage({
   if (!initialRoute || segments.length > 2) notFound();
 
   const data = await getCrmDatabaseData();
-  return <PrivazyCrm canMutate={canMutateCrm(role)} data={data} initialRoute={initialRoute} />;
+  return <PrivazyCrm actorName={session.user.name ?? session.user.email ?? "Użytkownik"} actorRole={role} canMutate={canMutateCrm(role)} data={data} initialRoute={initialRoute} />;
 }

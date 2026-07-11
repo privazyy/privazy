@@ -339,9 +339,13 @@ function DataTable({
                     ) : isTag && row.tag ? (
                       <Badge tone={row.tag.tone}>{row.tag.label}</Badge>
                     ) : column === "" ? (
-                      <IconButton label="Więcej" size="sm" variant="ghost">
-                        <CrmIcon name="MoreHorizontal" />
-                      </IconButton>
+                      row.actionRoute ? (
+                        <Button size="sm" type="button" variant="outline" onClick={() => onRoute?.(row.actionRoute!, row)}>
+                          Otwórz
+                        </Button>
+                      ) : (
+                        <span className="text-[var(--text-faint)]">—</span>
+                      )
                     ) : (
                       <span className="block max-w-[190px] truncate">{cell}</span>
                     )}
@@ -445,16 +449,34 @@ function TaskModuleView({
   );
 }
 
-function Dashboard({ data, onRoute }: { data: CrmDatabaseData["dashboard"]; onRoute: (route: CrmRoute) => void }) {
+function Dashboard({ actorName, canMutate, data, onQuickAdd, onRoute }: { actorName: string; canMutate: boolean; data: CrmDatabaseData["dashboard"]; onQuickAdd: (route: CrmRoute) => void; onRoute: (route: CrmRoute) => void }) {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm text-[var(--text-muted)]">Poniedziałek, 29 czerwca - Centrum operacyjne</p>
-          <h1 className="mt-1 text-2xl font-extrabold text-[var(--text-strong)] sm:text-[26px]">Dzień dobry, Anna</h1>
+          <p className="text-sm text-[var(--text-muted)]">Centrum operacyjne CRM</p>
+          <h1 className="mt-1 text-2xl font-extrabold text-[var(--text-strong)] sm:text-[26px]">Dzień dobry, {actorName}</h1>
         </div>
-        <FilterBar labels={["Ogólny", "Sprzedaż", "IOD", "Dokumenty", "Księgowość"]} />
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={() => onRoute("leads")}>Leady</Button>
+          <Button type="button" variant="outline" onClick={() => onRoute("clients")}>Klienci</Button>
+          <Button type="button" variant="outline" onClick={() => onRoute("tasks")}>Zadania</Button>
+        </div>
       </div>
+
+      <Card padding="md" variant="flat">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--text-strong)]">Operacje CRM</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Twórz rekordy zapisywane w bazie i przechodź bezpośrednio do operacyjnych list.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!canMutate} type="button" onClick={() => onQuickAdd("leads")}><CrmIcon name="UserPlus" />Dodaj lead</Button>
+            <Button disabled={!canMutate} type="button" variant="outline" onClick={() => onQuickAdd("clients")}><CrmIcon name="Building2" />Dodaj klienta</Button>
+            <Button disabled={!canMutate} type="button" variant="outline" onClick={() => onQuickAdd("tasks")}><CrmIcon name="SquareCheckBig" />Dodaj zadanie</Button>
+          </div>
+        </div>
+      </Card>
 
       <KpiGrid items={data.kpis} onRoute={onRoute} />
 
@@ -462,7 +484,7 @@ function Dashboard({ data, onRoute }: { data: CrmDatabaseData["dashboard"]; onRo
         <Card padding="md" variant="flat">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-[var(--text-strong)]">Alerty operacyjne</h2>
-            <Badge tone="warning">5 pilnych</Badge>
+            <Badge tone={data.alerts.length > 0 ? "warning" : "neutral"}>{data.alerts.length} alertów</Badge>
           </div>
           <div className="space-y-3">
             {data.alerts.length === 0 ? (
@@ -839,7 +861,7 @@ function PlatformModule({ data, onPreview }: { data: CrmListModule; onPreview: (
   );
 }
 
-export function PrivazyCrm({ canMutate, data, initialRoute = "dashboard" }: { canMutate: boolean; data: CrmDatabaseData; initialRoute?: CrmRoute }) {
+export function PrivazyCrm({ actorName, actorRole, canMutate, data, initialRoute = "dashboard" }: { actorName: string; actorRole: string; canMutate: boolean; data: CrmDatabaseData; initialRoute?: CrmRoute }) {
   const [route, setRoute] = useState<CrmRoute>(initialRoute);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -894,7 +916,7 @@ export function PrivazyCrm({ canMutate, data, initialRoute = "dashboard" }: { ca
       requests: data.lists.requests,
     };
 
-    if (route === "dashboard") return <Dashboard data={data.dashboard} onRoute={setRouteAndClose} />;
+    if (route === "dashboard") return <Dashboard actorName={actorName} canMutate={canMutate} data={data.dashboard} onQuickAdd={handleQuickAdd} onRoute={setRouteAndClose} />;
     if (route === "leads") return <LeadModule data={data.lists.leads} leadView={leadView} onCreate={canMutate ? () => setCreateMode("lead") : undefined} onRoute={setRouteAndClose} setLeadView={setLeadView} />;
     if (route === "lead-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="lead" onBack={() => setRouteAndClose("leads")} />;
     if (route === "client-detail" && selectedRow?.id) return <CrmRecordDetail canMutate={canMutate} id={selectedRow.id} kind="organization" onBack={() => setRouteAndClose("clients")} />;
@@ -946,7 +968,7 @@ export function PrivazyCrm({ canMutate, data, initialRoute = "dashboard" }: { ca
       );
     }
 
-    return <Dashboard data={data.dashboard} onRoute={setRouteAndClose} />;
+    return <Dashboard actorName={actorName} canMutate={canMutate} data={data.dashboard} onQuickAdd={handleQuickAdd} onRoute={setRouteAndClose} />;
   })();
 
   return (
@@ -1034,8 +1056,8 @@ export function PrivazyCrm({ canMutate, data, initialRoute = "dashboard" }: { ca
               <div className="hidden items-center gap-2 rounded-[var(--radius-md)] p-1 hover:bg-[var(--surface-sunken)] md:flex">
                 <span className="grid size-8 place-items-center rounded-full bg-[var(--brand)] text-xs font-bold text-white">AK</span>
                 <div className="leading-tight">
-                  <div className="text-sm font-semibold text-[var(--text-strong)]">Anna Kowalczyk</div>
-                  <div className="text-xs text-[var(--text-muted)]">Operations Manager</div>
+                  <div className="max-w-36 truncate text-sm font-semibold text-[var(--text-strong)]">{actorName}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{actorRole}</div>
                 </div>
                 <CrmIcon className="size-4 text-[var(--text-faint)]" name="ChevronDown" />
               </div>
