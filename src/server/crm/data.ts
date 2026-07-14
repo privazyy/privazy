@@ -2,6 +2,9 @@ import "server-only";
 
 import type {
   CrmTaskStatus,
+  DataSubjectRequestPriority,
+  DataSubjectRequestStatus,
+  DataSubjectRequestType,
   DocumentGenerationStatus,
   DocumentInputStatus,
   DocumentTemplateStatus,
@@ -139,6 +142,39 @@ const documentInputStatusLabels: Record<DocumentInputStatus, string> = {
   SUBMITTED: "Wysłany",
 };
 
+const dsrTypeLabels: Record<DataSubjectRequestType, string> = {
+  ACCESS: "Dostęp",
+  AUTOMATED_DECISION: "Decyzja automatyczna",
+  COPY: "Kopia danych",
+  ERASURE: "Usunięcie",
+  OBJECTION: "Sprzeciw",
+  OTHER: "Inne",
+  PORTABILITY: "Przenoszenie",
+  RECTIFICATION: "Sprostowanie",
+  RESTRICTION: "Ograniczenie",
+  WITHDRAW_CONSENT: "Wycofanie zgody",
+};
+
+const dsrStatusLabels: Record<DataSubjectRequestStatus, string> = {
+  CANCELLED: "Anulowane",
+  CLOSED: "Zamknięte",
+  DRAFT: "Szkic",
+  IDENTITY_VERIFICATION: "Weryfikacja tożsamości",
+  IN_PROGRESS: "W toku",
+  RECEIVED: "Odebrane",
+  REJECTED: "Odrzucone",
+  RESPONDED: "Odpowiedziano",
+  RESPONSE_PREPARED: "Odpowiedź gotowa",
+  WAITING_FOR_INFORMATION: "Czeka na informacje",
+};
+
+const dsrPriorityLabels: Record<DataSubjectRequestPriority, string> = {
+  HIGH: "Wysoki",
+  LOW: "Niski",
+  NORMAL: "Normalny",
+  URGENT: "Pilny",
+};
+
 export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
   const prisma = getPrisma();
 
@@ -157,6 +193,7 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     formSubmissions,
     tasks,
     dataBreachIncidents,
+    dataSubjectRequests,
     auditLogs,
     counts,
   ] = await Promise.all([
@@ -302,6 +339,14 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         reportedBy: { select: { email: true, name: true } },
       },
       orderBy: [{ authorityNotificationDeadlineAt: "asc" }, { updatedAt: "desc" }],
+      take: 100,
+    }),
+    prisma.dataSubjectRequest.findMany({
+      include: {
+        assignedTo: { select: { email: true, name: true } },
+        organization: { select: { id: true, name: true } },
+      },
+      orderBy: [{ dueAt: "asc" }, { updatedAt: "desc" }],
       take: 100,
     }),
     prisma.auditLog.findMany({
@@ -551,31 +596,6 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
     };
   });
 
-  const requestRows = formSubmissions
-    .filter((submission) => {
-      const formType = submission.formType.toLowerCase();
-      return formType.includes("request") || formType.includes("zadanie") || formType.includes("data_subject");
-    })
-    .map<TableRow>((submission) => {
-      const status = submission.status.toLowerCase();
-
-      return {
-        actionRoute: "request-detail",
-        cells: [
-          submission.organization.name,
-          submission.formType,
-          submission.createdBy?.name ?? submission.createdBy?.email ?? "-",
-          status,
-          formatDate(submission.createdAt),
-          formatDate(submission.updatedAt),
-          "",
-        ],
-        primary: submission.id,
-        secondary: "FormSubmission",
-        status: { label: status, tone: statusTone(status) },
-      };
-    });
-
   const auditRows: TableRow[] = auditLogs.map((log) => ({
     cells: [
       log.entityType,
@@ -659,12 +679,39 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
         "",
       ],
       id: incident.id,
+      href: `/admin/breaches/${incident.id}`,
       primary: incident.id,
       secondary: incident.title,
       status: { label: incident.status, tone: statusTone(incident.status) },
       tag: deadline.isOverdue
         ? { label: "Po terminie", tone: "danger" as Tone }
         : { label: deadline.label, tone: deadline.remainingMs < 12 * 60 * 60 * 1000 ? "warning" as Tone : "neutral" as Tone },
+    };
+  });
+
+  const dsrRows: TableRow[] = dataSubjectRequests.map((request) => {
+    const status = dsrStatusLabels[request.status];
+    const deadline = request.extensionUntil ?? request.dueAt;
+    const isOverdue = Boolean(deadline && deadline.getTime() < Date.now() && !["CLOSED", "CANCELLED", "RESPONDED"].includes(request.status));
+
+    return {
+      cells: [
+        request.organization.name,
+        dsrTypeLabels[request.type],
+        status,
+        dsrPriorityLabels[request.priority],
+        request.verificationStatus,
+        deadline ? formatDate(deadline) : "-",
+        request.assignedTo?.name ?? request.assignedTo?.email ?? "Nieprzypisane",
+        formatDate(request.updatedAt),
+        "",
+      ],
+      href: `/admin/dsr/${request.id}`,
+      id: request.id,
+      primary: request.requesterName,
+      secondary: request.requesterEmail,
+      status: { label: status, tone: isOverdue ? "danger" : statusTone(status) },
+      tag: isOverdue ? { label: "Po terminie", tone: "danger" } : undefined,
     };
   });
 
@@ -879,18 +926,18 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       title: "Produkty / sklep",
     },
     requests: {
-      action: "Dodaj żądanie",
-      columns: ["Nr sprawy", "Klient", "Typ formularza", "Utworzył", "Status", "Utworzono", "Aktualizacja", ""],
+      action: "Nowe żądanie",
+      columns: ["Osoba", "Organizacja", "Typ", "Status", "Priorytet", "Weryfikacja", "Termin", "Opiekun", "Aktualizacja", ""],
       emptyMessage: "Brak żądań osób w bazie danych.",
       icon: "UserCog",
       kpis: [
-        { icon: "UserCog", label: "Żądania osób", value: String(requestRows.length), tone: requestRows.length > 0 ? "warning" : "neutral" },
-        { icon: "FileText", label: "Wszystkie formularze", value: String(counts.formSubmissions), tone: "brand" },
-        { icon: "Clock3", label: "W obsłudze", value: String(formSubmissions.filter((item) => item.status === "PROCESSING").length), tone: "warning" },
-        { icon: "BadgeCheck", label: "Zakończone", value: String(formSubmissions.filter((item) => item.status === "COMPLETED").length), tone: "success" },
+        { icon: "UserCog", label: "Wszystkie", value: String(counts.dataSubjectRequests), tone: "brand" },
+        { icon: "Clock3", label: "W obsłudze", value: String(dataSubjectRequests.filter((item) => ["RECEIVED", "IDENTITY_VERIFICATION", "IN_PROGRESS", "WAITING_FOR_INFORMATION", "RESPONSE_PREPARED"].includes(item.status)).length), tone: "warning" },
+        { icon: "ShieldAlert", label: "Pilne", value: String(dataSubjectRequests.filter((item) => item.priority === "URGENT").length), tone: "danger" },
+        { icon: "BadgeCheck", label: "Zakończone", value: String(dataSubjectRequests.filter((item) => ["RESPONDED", "CLOSED"].includes(item.status)).length), tone: "success" },
       ],
-      rows: requestRows,
-      subtitle: "Żądania osób są filtrowane z tabeli FormSubmission po typie formularza.",
+      rows: dsrRows,
+      subtitle: "Żądania osób z terminami, weryfikacją tożsamości i przygotowaniem odpowiedzi.",
       title: "Żądania osób",
     },
   };
@@ -1229,6 +1276,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       auditLogsCount,
       dataBreachIncidentsCount,
       dataBreachActivitiesCount,
+      dataSubjectRequestsCount,
+      dataSubjectRequestActivitiesCount,
     ] = await Promise.all([
       prisma.organization.count(),
       prisma.clientProfile.count(),
@@ -1250,6 +1299,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       prisma.auditLog.count(),
       prisma.dataBreachIncident.count(),
       prisma.dataBreachActivity.count(),
+      prisma.dataSubjectRequest.count(),
+      prisma.dataSubjectRequestActivity.count(),
     ]);
 
     return {
@@ -1263,6 +1314,8 @@ export async function getCrmDatabaseData(): Promise<CrmDatabaseData> {
       documentInputs: documentInputsCount,
       dataBreachActivities: dataBreachActivitiesCount,
       dataBreachIncidents: dataBreachIncidentsCount,
+      dataSubjectRequestActivities: dataSubjectRequestActivitiesCount,
+      dataSubjectRequests: dataSubjectRequestsCount,
       formSubmissions: formSubmissionsCount,
       generatedDocuments: generatedDocumentsCount,
       generationJobs,

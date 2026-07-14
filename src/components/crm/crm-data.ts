@@ -79,6 +79,7 @@ export type TableRow = {
   actionRoute?: CrmRoute;
   avatar?: string;
   cells: string[];
+  href?: string;
   id?: string;
   meta?: string;
   primary: string;
@@ -187,6 +188,13 @@ export const navGroups: NavGroup[] = [
       { route: "document-inputs", label: "Formularze dokumentów", icon: "FileInput" },
       { route: "document-jobs", label: "Joby dokumentów", icon: "FileCog" },
       { route: "documents", label: "Dokumenty", icon: "FileText" },
+    ],
+  },
+  {
+    label: "Zgodność i sprawy",
+    items: [
+      { route: "breaches", label: "Naruszenia", icon: "TriangleAlert" },
+      { route: "requests", label: "Żądania osób", icon: "UserCog" },
     ],
   },
   {

@@ -1,6 +1,8 @@
 "use client";
 
 import * as Lucide from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
 import { useState, type ComponentType, type SVGProps } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -317,16 +319,22 @@ function DataTable({
                     {row.avatar ?? initials(row.primary)}
                   </span>
                   <div className="min-w-0">
-                    <button
-                      type="button"
-                      className={cn(
-                        "max-w-[280px] truncate text-left font-semibold text-[var(--text-strong)] hover:text-[var(--brand-ink)]",
-                        row.actionRoute && "cursor-pointer",
-                      )}
-                      onClick={() => row.actionRoute && onRoute?.(row.actionRoute, row)}
-                    >
-                      {row.primary}
-                    </button>
+                    {row.href ? (
+                      <Link className="block max-w-[280px] truncate text-left font-semibold text-[var(--text-strong)] hover:text-[var(--brand-ink)]" href={row.href as Route}>
+                        {row.primary}
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className={cn(
+                          "max-w-[280px] truncate text-left font-semibold text-[var(--text-strong)] hover:text-[var(--brand-ink)]",
+                          row.actionRoute && "cursor-pointer",
+                        )}
+                        onClick={() => row.actionRoute && onRoute?.(row.actionRoute, row)}
+                      >
+                        {row.primary}
+                      </button>
+                    )}
                     {row.secondary && <div className="mt-1 max-w-[300px] truncate text-xs text-[var(--text-muted)]">{row.secondary}</div>}
                   </div>
                 </div>
@@ -345,7 +353,11 @@ function DataTable({
                     ) : isTag && row.tag ? (
                       <Badge tone={row.tag.tone}>{row.tag.label}</Badge>
                     ) : column === "" ? (
-                      row.actionRoute ? (
+                      row.href ? (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={row.href as Route}>Otwórz</Link>
+                        </Button>
+                      ) : row.actionRoute ? (
                         <Button size="sm" type="button" variant="outline" onClick={() => onRoute?.(row.actionRoute!, row)}>
                           Otwórz
                         </Button>
